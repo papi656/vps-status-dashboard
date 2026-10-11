@@ -66,8 +66,29 @@ All read from the environment, optionally via a local `.env` (see `.env.example`
 | `DB_PATH` | `$DATA_DIR/status.db` | Explicit database path |
 | `SAMPLE_RETENTION_HOURS` | `24` | Hours of 60s samples retained |
 | `SCAN_RETENTION_DAYS` | `7` | Days of 12h disk-space scans retained |
+| `PRUNE_INTERVAL_SECONDS` | `300` | How often the background retention task runs |
 
-Retention is enforced on every ingest (rows older than the window are pruned).
+### Retention
+
+Rows outside the window are deleted **twice over**, so the timeline holds even if
+the agent stops reporting:
+
+1. **On every ingest** — cheap, indexed deletes at the tail of the write transaction.
+2. **On a background timer** (default every 5 min, plus once at boot) — so data still
+   expires when no snapshots are arriving.
+
+Child rows cascade (`disks`, `processes`, `disk_items` via `ON DELETE CASCADE`), and
+each background pass runs `PRAGMA wal_checkpoint(TRUNCATE)` to fold the WAL back into
+the main file. Deletions are logged, e.g.:
+
+```
+2026-10-11 18:50:48 | INFO | vpsdash | retention: pruned 2 sample(s) older than 24h
+```
+
+The database file size is **bounded**: at 60 s cadence a 24 h window is ~1440 samples
+(≈1.5 MB) and SQLite reuses freed pages for new inserts, so it plateaus rather than
+growing without limit. A physical `VACUUM` is not needed for that reason, but can be
+run by hand if you ever delete a large backlog at once.
 
 ## API
 

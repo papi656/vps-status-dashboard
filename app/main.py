@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hmac
+import logging
 import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
@@ -13,10 +16,47 @@ from . import db
 from .config import settings
 from .models import Snapshot
 
+log = logging.getLogger("vpsdash")
+
+# Uvicorn only configures its own loggers; give app-level logs a handler too.
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+    )
+
+
+async def _retention_loop() -> None:
+    """Enforce retention on a timer so it does not depend on incoming samples."""
+    while True:
+        await asyncio.sleep(settings.prune_interval_seconds)
+        try:
+            deleted = await asyncio.to_thread(db.prune_now)
+            if deleted:
+                log.info("retention: pruned %d sample(s) older than %dh", deleted, settings.sample_retention_hours)
+        except Exception:  # never let the loop die on a transient DB error
+            log.exception("retention pass failed")
+
+
+@contextlib.asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Prune once at boot, then on the configured interval.
+    with contextlib.suppress(Exception):
+        await asyncio.to_thread(db.prune_now)
+    task = asyncio.create_task(_retention_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 app = FastAPI(
     title="VPS Status Dashboard",
     version="1.0.0",
     description="Ingest sink and read-only telemetry dashboard for the serverStatus agent.",
+    lifespan=lifespan,
 )
 
 

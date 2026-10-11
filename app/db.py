@@ -178,17 +178,34 @@ def store_snapshot(snap: Snapshot) -> None:
     prune(conn)
 
 
-def prune(conn: sqlite3.Connection) -> None:
+def prune(conn: sqlite3.Connection) -> int:
+    """Delete samples/scans outside the retention window. Returns samples deleted."""
     now = int(time.time())
     with conn:
-        conn.execute(
+        cur = conn.execute(
             "DELETE FROM samples WHERE ts < ?",
             (now - settings.sample_retention_hours * 3600,),
         )
+        deleted = max(0, cur.rowcount)
         conn.execute(
             "DELETE FROM disk_scans WHERE scanned_at < ?",
             (now - settings.scan_retention_days * 86400,),
         )
+    return deleted
+
+
+def prune_now() -> int:
+    """Prune from a background thread and fold the WAL back into the main file.
+
+    Called on a timer so retention holds even when the agent stops reporting.
+    """
+    conn = get_conn()
+    deleted = prune(conn)
+    try:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except sqlite3.Error:
+        pass
+    return deleted
 
 
 # ---------------------------------------------------------------------------- read

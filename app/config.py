@@ -56,6 +56,8 @@ class Settings:
         default_factory=lambda: _int("SAMPLE_RETENTION_HOURS", 24)
     )
     scan_retention_days: int = field(default_factory=lambda: _int("SCAN_RETENTION_DAYS", 7))
+    # How often the background task enforces retention, independent of ingest.
+    prune_interval_seconds: int = field(default_factory=lambda: _int("PRUNE_INTERVAL_SECONDS", 300))
 
     public_dir: Path = field(default_factory=lambda: ROOT / "public")
 
