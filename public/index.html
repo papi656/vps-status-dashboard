@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VPS Telemetry // Status Dashboard</title>
+  <meta name="color-scheme" content="dark light" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="badge frame">
+        <span class="glyph">▤</span>
+        <span class="label">VPS-TELEMETRY // <span id="host-badge">AWAITING</span></span>
+      </div>
+      <div class="badge ok" id="liveness-badge">
+        <span class="dot"></span>
+        <span class="label" id="liveness-label">PASSIVE OBSERVER // AIR-GAPPED DB SINK</span>
+      </div>
+      <div class="topbar-stat">
+        <span class="k">UPTIME:</span><span class="v" id="hdr-uptime">—</span>
+        <span class="sep">|</span>
+        <span class="k">SYNC:</span><span class="v" id="hdr-sync">—</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="theme-switch" role="group" aria-label="Colour theme">
+        <button type="button" data-theme-set="dark" title="Night console">NIGHT</button>
+        <button type="button" data-theme-set="light" title="Day bridge">DAY</button>
+      </div>
+      <div class="badge lock"><span class="glyph">⌾</span><span class="label">READ-ONLY VIEW</span></div>
+    </div>
+  </header>
+
+  <div class="tickbar">
+    <span>SRV//BAY: U01</span><span>U02</span><span>U03</span><span>U04</span>
+    <span class="tickbus">[TELEMETRY_BUS // SQLITE-SNAPSHOT-STREAM]</span>
+    <span>U05</span><span>U06</span><span>U07</span><span>SRV//BAY: U08</span>
+  </div>
+
+  <main>
+    <div class="empty" id="empty-state" hidden>
+      <div class="empty-box">
+        <div class="empty-title">◎ AWAITING FIRST TELEMETRY SNAPSHOT</div>
+        <div class="empty-sub mono">
+          The receiver is listening on <b>/ingest</b>. No sample has been stored yet.<br />
+          Point the agent here, or replay one locally:
+        </div>
+        <pre class="empty-cmd mono" id="empty-cmd">TOKEN=dev ENDPOINT=http://127.0.0.1:8099/ingest ./server-status-agent --once</pre>
+      </div>
+    </div>
+
+    <!-- TACTICAL BANNER -->
+    <section class="banner">
+      <div class="banner-top">
+        <div class="banner-id">
+          <span class="square"></span>
+          <div>
+            <div class="banner-title">
+              CONSOLE-01 // PRODUCTION VPS TELEMETRY
+              <span class="tag">[SINGLE HOST]</span>
+            </div>
+            <div class="banner-sub mono">
+              HOSTNAME: <span id="banner-host">—</span> &nbsp;|&nbsp;
+              CORES: <span id="banner-cores">—</span> &nbsp;|&nbsp;
+              UPTIME: <span id="banner-uptime">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="banner-chips">
+          <div class="chip"><span class="k">EXECUTION ACCESS:</span><span class="v ok">ZERO ACCESS [PASSIVE OBSERVER]</span></div>
+          <div class="chip"><span class="k">PHYSICAL MEM:</span><span class="v mono" id="chip-mem">—</span></div>
+          <div class="chip"><span class="k">DISK POOL:</span><span class="v mono cy" id="chip-disk">—</span></div>
+          <div class="chip"><span class="k">CADENCE:</span><span class="v cy mono" id="chip-cadence">—</span></div>
+        </div>
+      </div>
+      <div class="banner-load">
+        <span>LOAD AVG (1m/5m/15m): <strong class="mono" id="load-vals">[—] [—] [—]</strong></span>
+        <span class="sep">|</span>
+        <span>PROCESSES: <span class="mono" id="proc-count-inline">—</span></span>
+        <span class="sep">|</span>
+        <span>NET RX/TX TOTAL: <span class="mono" id="net-total-inline">—</span></span>
+      </div>
+    </section>
+
+    <!-- QUADRANT GRID -->
+    <section class="quad-grid">
+      <!-- UNIT-01 CPU -->
+      <article class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="dot ok"></span>UNIT-01 // CPU CORE TELEMETRY</div>
+          <span class="panel-meta mono" id="cpu-meta">—</span>
+        </div>
+        <div class="big-row">
+          <div>
+            <div class="big-value ok" id="cpu-value">—<span class="big-unit">%</span></div>
+            <div class="big-label">AGGREGATE CPU USAGE</div>
+          </div>
+          <span class="state" id="cpu-state">—</span>
+        </div>
+        <div class="cores" id="cpu-cores"></div>
+        <div class="mini" id="cpu-spark"></div>
+      </article>
+
+      <!-- UNIT-02 STORAGE -->
+      <article class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="dot cy"></span>UNIT-02 // STORAGE POOL</div>
+          <span class="panel-meta mono" id="disk-meta">—</span>
+        </div>
+        <div class="big-row">
+          <div>
+            <div class="big-value cy" id="disk-value">—<span class="big-unit">%</span></div>
+            <div class="big-label">VOLUME CAPACITY USED</div>
+          </div>
+          <div class="right-note mono" id="disk-total">—</div>
+        </div>
+        <div class="stack" id="disk-bar"></div>
+        <div class="kv" id="disk-list"></div>
+        <div class="kv-foot">
+          <span>READ: <b id="disk-read">—</b></span>
+          <span>WRITE: <b id="disk-write">—</b></span>
+        </div>
+      </article>
+
+      <!-- UNIT-03 RAM -->
+      <article class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="dot amb"></span>UNIT-03 // SYSTEM RAM ALLOCATION</div>
+          <span class="panel-meta mono" id="mem-meta">—</span>
+        </div>
+        <div class="big-row">
+          <div>
+            <div class="big-value" id="mem-value">—<span class="big-unit">%</span></div>
+            <div class="big-label">MEMORY COMMITTED</div>
+          </div>
+          <div class="right-note mono" id="mem-total">—</div>
+        </div>
+        <div class="stack" id="mem-bar"></div>
+        <div class="kv" id="mem-list"></div>
+        <div class="kv-foot">
+          <span>SWAP: <b id="mem-swap">—</b></span>
+          <span id="mem-avail-wrap">AVAILABLE: <b id="mem-avail">—</b></span>
+        </div>
+      </article>
+
+      <!-- UNIT-04 NETWORK -->
+      <article class="panel">
+        <div class="panel-head">
+          <div class="panel-title"><span class="dot cy"></span>UNIT-04 // NETWORK THROUGHPUT</div>
+          <span class="panel-meta mono" id="net-meta">—</span>
+        </div>
+        <div class="big-row">
+          <div>
+            <div class="big-value cy" id="net-value">—<span class="big-unit">/s</span></div>
+            <div class="big-label">COMBINED NETWORK IO</div>
+          </div>
+          <div class="right-note mono" id="net-note">—</div>
+        </div>
+        <div class="split">
+          <div>
+            <span class="big-label">INBOUND (RX)</span>
+            <span class="split-val ok" id="net-rx">—</span>
+            <span class="split-sub mono" id="net-rx-total">—</span>
+          </div>
+          <div class="brd">
+            <span class="big-label">OUTBOUND (TX)</span>
+            <span class="split-val cy" id="net-tx">—</span>
+            <span class="split-sub mono" id="net-tx-total">—</span>
+          </div>
+        </div>
+        <div class="kv-foot">
+          <span>DISK READ: <b id="net-io-r">—</b></span>
+          <span>DISK WRITE: <b id="net-io-w">—</b></span>
+        </div>
+      </article>
+    </section>
+
+    <!-- HISTORY -->
+    <section class="panel history">
+      <div class="panel-head">
+        <div class="panel-title">HISTORICAL FLUX // CPU &amp; MEMORY TELEMETRY</div>
+        <div class="range-switch" role="group" aria-label="History range">
+          <button type="button" data-range="1h">1H</button>
+          <button type="button" data-range="6h">6H</button>
+          <button type="button" data-range="24h" class="active">24H</button>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="sw ok"></i>CPU %</span>
+        <span><i class="sw cy"></i>MEMORY %</span>
+        <span><i class="sw amb"></i>NET RX MB/s</span>
+        <span class="legend-note mono" id="chart-note">—</span>
+      </div>
+      <div class="chart" id="chart"></div>
+    </section>
+
+    <!-- LOWER SPLIT -->
+    <section class="lower">
+      <div class="panel proc">
+        <div class="panel-head">
+          <div class="panel-title"><span class="glyph ok">▤</span>REGISTERED SYSTEM DAEMONS &amp; PROCESSES</div>
+          <div class="panel-meta mono" id="proc-counts">—</div>
+        </div>
+        <div class="table-wrap">
+          <table class="proc-table">
+            <thead>
+              <tr>
+                <th>PID</th><th>DAEMON / SUB-SYSTEM</th><th>CPU %</th>
+                <th>RAM %</th><th class="right">DISTRIBUTION</th>
+              </tr>
+            </thead>
+            <tbody id="proc-body"></tbody>
+          </table>
+        </div>
+        <div class="ring">
+          <div class="ring-head">
+            <span><span class="pulse">●</span> RECENT SAMPLE RING BUFFER</span>
+            <span class="mono" id="ring-note">—</span>
+          </div>
+          <div class="ring-body mono" id="ring"></div>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">RECEIVER / INGEST STATUS</div>
+            <span class="panel-meta mono">v1.0.0</span>
+          </div>
+          <div class="kv" id="rx-kv"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">DISK SPACE FORENSICS</div>
+            <span class="panel-meta mono" id="scan-age">—</span>
+          </div>
+          <div class="kv" id="scan-dirs"></div>
+          <div class="kv scan-files" id="scan-files"></div>
+        </div>
+      </aside>
+    </section>
+
+    <div class="bottombar">
+      <div>SERVER: <span class="mono" id="bottom-host">—</span> // RETENTION: <span class="mono" id="bottom-retention">—</span></div>
+      <div class="mono">
+        <span>DB: SQLITE WAL</span>
+        <span>SYS DISP: PHOSPHOR</span>
+        <span class="ok" id="bottom-sync">[SYNCHRONIZED]</span>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div>
+      <span>BUS: <span class="ok mono">28.4V DC NOMINAL</span></span>
+      <span>SNAP: <span class="ok mono" id="foot-last">—</span></span>
+    </div>
+    <div class="mono">
+      <span class="pulse ok">•</span>
+      <span id="foot-hash">RAW_STREAM: 0x0000_DAEMON_OK</span>
+    </div>
+    <div>
+      <span>LAG: <span class="ok mono" id="foot-lag">—</span></span>
+      <span class="dim">// PASSIVE VIEW //</span>
+    </div>
+  </footer>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+data
+*.db
+*.db-wal
+*.db-shm
+.env
+stitch_vps_status_dashboard
+AGENT-TO-DASHBOARD.md
+.DS_Store
+README.md

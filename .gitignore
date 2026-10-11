@@ -1,0 +1,22 @@
+# Design inspiration (Google Stitch export)
+stitch_vps_status_dashboard/
+
+# Handoff doc (kept local on purpose)
+AGENT-TO-DASHBOARD.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Local state
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
+
+# macOS
+.DS_Store
