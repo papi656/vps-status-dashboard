@@ -104,11 +104,9 @@ body {
   background: var(--surface-low);
   border: 1px solid var(--surface-highest);
 }
-.badge.frame { border-color: var(--outline); }
 .badge .label { font-size: 9px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
 .badge .glyph { font-size: 12px; color: var(--muted); }
 .badge.ok .label { color: var(--ok); }
-.badge.lock .label { color: var(--muted); }
 .badge .dot {
   width: 8px; height: 8px; background: var(--ok); box-shadow: var(--glow-ok);
 }
@@ -132,21 +130,9 @@ body {
 .theme-switch button.active { background: var(--ok); color: var(--ok-ink); }
 .theme-switch button:hover:not(.active) { color: var(--text); background: var(--surface-high); }
 
-/* ------------------------------------------------------------------ tick bar */
-.tickbar {
-  position: fixed; top: 3.5rem; left: 0; right: 0; z-index: 39;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: .15rem .75rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--surface-highest);
-  color: var(--muted);
-  font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
-}
-.tickbar .tickbus { color: var(--ok); }
-
 /* ---------------------------------------------------------------------- main */
 main {
-  padding: 6.25rem .75rem 3.5rem;
+  padding: 4.5rem .75rem 3.5rem;
 }
 
 /* ----------------------------------------------------------------- empty state */
@@ -391,6 +377,6 @@ footer .dim { text-transform: uppercase; }
 }
 @media (max-width: 720px) {
   .quad-grid { grid-template-columns: 1fr; }
-  .topbar-stat, .badge.lock { display: none; }
+  .topbar-stat { display: none; }
   .chart svg { height: 160px; }
 }

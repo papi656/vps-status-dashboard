@@ -13,10 +13,6 @@
 <body>
   <header class="topbar">
     <div class="topbar-left">
-      <div class="badge frame">
-        <span class="glyph">▤</span>
-        <span class="label">VPS-TELEMETRY // <span id="host-badge">AWAITING</span></span>
-      </div>
       <div class="badge ok" id="liveness-badge">
         <span class="dot"></span>
         <span class="label" id="liveness-label">PASSIVE OBSERVER // AIR-GAPPED DB SINK</span>
@@ -32,15 +28,8 @@
         <button type="button" data-theme-set="dark" title="Night console">NIGHT</button>
         <button type="button" data-theme-set="light" title="Day bridge">DAY</button>
       </div>
-      <div class="badge lock"><span class="glyph">⌾</span><span class="label">READ-ONLY VIEW</span></div>
     </div>
   </header>
-
-  <div class="tickbar">
-    <span>SRV//BAY: U01</span><span>U02</span><span>U03</span><span>U04</span>
-    <span class="tickbus">[TELEMETRY_BUS // SQLITE-SNAPSHOT-STREAM]</span>
-    <span>U05</span><span>U06</span><span>U07</span><span>SRV//BAY: U08</span>
-  </div>
 
   <main>
     <div class="empty" id="empty-state" hidden>
@@ -72,7 +61,6 @@
           </div>
         </div>
         <div class="banner-chips">
-          <div class="chip"><span class="k">EXECUTION ACCESS:</span><span class="v ok">ZERO ACCESS [PASSIVE OBSERVER]</span></div>
           <div class="chip"><span class="k">PHYSICAL MEM:</span><span class="v mono" id="chip-mem">—</span></div>
           <div class="chip"><span class="k">DISK POOL:</span><span class="v mono cy" id="chip-disk">—</span></div>
           <div class="chip"><span class="k">CADENCE:</span><span class="v cy mono" id="chip-cadence">—</span></div>
@@ -92,7 +80,7 @@
       <!-- UNIT-01 CPU -->
       <article class="panel">
         <div class="panel-head">
-          <div class="panel-title"><span class="dot ok"></span>UNIT-01 // CPU CORE TELEMETRY</div>
+          <div class="panel-title"><span class="dot ok"></span>CPU CORE TELEMETRY</div>
           <span class="panel-meta mono" id="cpu-meta">—</span>
         </div>
         <div class="big-row">
@@ -109,7 +97,7 @@
       <!-- UNIT-02 STORAGE -->
       <article class="panel">
         <div class="panel-head">
-          <div class="panel-title"><span class="dot cy"></span>UNIT-02 // STORAGE POOL</div>
+          <div class="panel-title"><span class="dot cy"></span>STORAGE POOL</div>
           <span class="panel-meta mono" id="disk-meta">—</span>
         </div>
         <div class="big-row">
@@ -130,7 +118,7 @@
       <!-- UNIT-03 RAM -->
       <article class="panel">
         <div class="panel-head">
-          <div class="panel-title"><span class="dot amb"></span>UNIT-03 // SYSTEM RAM ALLOCATION</div>
+          <div class="panel-title"><span class="dot amb"></span>SYSTEM RAM ALLOCATION</div>
           <span class="panel-meta mono" id="mem-meta">—</span>
         </div>
         <div class="big-row">
@@ -151,7 +139,7 @@
       <!-- UNIT-04 NETWORK -->
       <article class="panel">
         <div class="panel-head">
-          <div class="panel-title"><span class="dot cy"></span>UNIT-04 // NETWORK THROUGHPUT</div>
+          <div class="panel-title"><span class="dot cy"></span>NETWORK THROUGHPUT</div>
           <span class="panel-meta mono" id="net-meta">—</span>
         </div>
         <div class="big-row">

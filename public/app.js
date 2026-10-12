@@ -262,7 +262,6 @@ function renderScan(scan) {
 }
 
 function renderBanner(s, stats) {
-  setText("host-badge", (s.hostname || "UNKNOWN").toUpperCase());
   setText("banner-host", s.hostname);
   setText("banner-cores", String(s.cpu.per_core_pct.length));
   setText("banner-uptime", fmtUptime(s.uptime_s));
