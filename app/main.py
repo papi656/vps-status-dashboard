@@ -103,6 +103,9 @@ def api_health() -> dict[str, object]:
         "samples": stats["samples"],
         "last_ts": last_ts,
         "last_age_s": (int(time.time()) - last_ts) if last_ts else None,
+        # Exposed so persistence can be checked without a shell on the box: if samples
+        # reset after a redeploy while db_path stayed the same, the mount is not durable.
+        "db_path": str(settings.db_path),
         "ingest": ingest_guard(),
     }
 

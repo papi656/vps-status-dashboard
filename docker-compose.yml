@@ -49,4 +49,7 @@ services:
       start_period: 10s
 
 volumes:
+  # Pinned so a change to the Coolify project name / resource UUID cannot orphan the
+  # previous volume and quietly start a fresh, empty database on the next deploy.
   dashboard-data:
+    name: vpsdash-dashboard-data

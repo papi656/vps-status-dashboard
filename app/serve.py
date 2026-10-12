@@ -17,7 +17,7 @@ import os
 
 import uvicorn
 
-from .config import settings
+from .config import ROOT, settings
 from .ingest import ingest_app
 from .main import app as public_app
 
@@ -52,6 +52,20 @@ def _preflight() -> None:
             settings.public_port,
             settings.ingest_port,
             settings.public_port,
+        )
+
+    # Storage: the one misconfiguration that silently loses history is a DATA_DIR on the
+    # container's writable layer. It looks healthy at runtime and only shows up as an
+    # empty database after the next redeploy, so name it at boot.
+    log.info("storage: DATA_DIR=%s  DB=%s", settings.data_dir, settings.db_path)
+    if os.path.exists("/.dockerenv") and (
+        settings.data_dir == ROOT or ROOT in settings.data_dir.parents
+    ):
+        log.warning(
+            "DATA_DIR=%s resolves inside the image, not on a mount — the writable layer "
+            "is discarded on every redeploy, so history cannot survive. Attach persistent "
+            "storage and point DATA_DIR at it (e.g. /data).",
+            settings.data_dir,
         )
 
 
