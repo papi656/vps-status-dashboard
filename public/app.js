@@ -73,7 +73,9 @@ function setValue(id, value, cls) {
   if (cls !== undefined) el.className = `big-value ${cls}`;
 }
 function kvRow(k, v, cls = "") {
-  return `<div class="row"><span class="k">${k}</span><span class="v ${cls}">${v}</span></div>`;
+  // Escape both sides: `k` and `v` can originate from agent-supplied strings
+  // (mount points, paths, names), so they must never be interpolated raw.
+  return `<div class="row"><span class="k">${escapeHtml(k)}</span><span class="v ${cls}">${escapeHtml(v)}</span></div>`;
 }
 
 /* ------------------------------------------------------------------ renders */
@@ -116,7 +118,7 @@ function renderDisks(s) {
       .map((d, i) => {
         const w = total ? (d.used / total) * 100 : 0;
         const color = `var(--${palette[i % palette.length]})`;
-        return `<span class="seg" style="width:${w}%;background:${color}" title="${d.mount} ${fmtBytes(d.used)}"></span>`;
+        return `<span class="seg" style="width:${w}%;background:${color}" title="${escapeHtml(d.mount)} ${escapeHtml(fmtBytes(d.used))}"></span>`;
       })
       .join("") + `<span class="seg free" style="flex:1"></span>`;
 
