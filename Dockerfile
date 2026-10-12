@@ -18,6 +18,11 @@ RUN useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin dash 
     && mkdir -p /data \
     && chown -R dash:dash /app /data
 
+# Point the DB at the volume. The app's fallback is ROOT-relative (ROOT = /app), so without
+# this the database lands in /app/data inside the container's writable layer and is wiped on
+# every redeploy — declaring VOLUME ["/data"] is not enough on its own.
+ENV DATA_DIR=/data
+
 USER dash
 
 VOLUME ["/data"]

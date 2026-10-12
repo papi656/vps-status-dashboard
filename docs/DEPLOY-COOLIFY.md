@@ -36,9 +36,12 @@ Set these in **Environment Variables**:
 INGEST_TOKEN=$(openssl rand -hex 32)   # REQUIRED — app refuses to start if empty
 ```
 
-The rest have sane defaults and only need overriding if you change behaviour:
+The image already sets `DATA_DIR=/data` (see §3), so the database lands on the mounted
+volume by default. The rest have sane defaults and only need overriding if you change
+behaviour:
 
 ```bash
+DATA_DIR=/data                 # must match the storage mount in §3
 INGEST_RATE_LIMIT_SECONDS=30   # must stay well below the agent's INTERVAL_SECS (60)
 MAX_INGEST_BODY_BYTES=1048576
 CLOCK_SKEW_SECONDS=300
@@ -57,6 +60,10 @@ Changing any of these needs a redeploy to take effect.
 
 Attach storage to **`/data`**. Without it, every redeploy recreates the SQLite database
 and you lose the whole 24 h window.
+
+The image sets `DATA_DIR=/data`, so the database is written to that mount — not to the
+container filesystem. If you override `DATA_DIR`, it must still point at the mounted path
+or the data will vanish on redeploy.
 
 The container runs as **uid `10001`**. A Docker-managed volume inherits the right
 ownership automatically. If you use a **bind mount** instead, the host directory must be
@@ -164,7 +171,7 @@ Counters are in-process, so they reset when the container restarts.
 | Agent logs `422 ... in the future` | VPS clock ahead of the container; fix NTP or raise `CLOCK_SKEW_SECONDS` |
 | Agent logs `422` about a list/collection | Payload exceeded a bound; see the message |
 | Agent logs connection refused | Port mapping missing, or the agent points at `8098` instead of `8099` |
-| History empty after every redeploy | `/data` storage not attached |
+| History empty after every redeploy | `/data` storage not attached, or `DATA_DIR` points somewhere else (must be `/data`) |
 | `unable to open database file` | Bind mount not owned by uid `10001` |
 | Dashboard says `TELEMETRY STALE` | Agent not running, or being rejected — check its journal |
 | `POST https://domain/ingest` returns `401` | The proxy is routing the ingest port — fix the route |
