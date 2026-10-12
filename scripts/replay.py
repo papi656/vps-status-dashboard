@@ -18,6 +18,7 @@ import argparse
 import json
 import random
 import time
+import urllib.error
 import urllib.request
 
 PROC_NAMES = [
@@ -104,8 +105,19 @@ def post(url: str, token: str, payload: dict) -> int:
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=10) as res:
-        return res.status
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            return res.status
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            retry = exc.headers.get("Retry-After", "?")
+            raise SystemExit(
+                f"429 rate limited (retry after {retry}s).\n"
+                "Ingest accepts one request per INGEST_RATE_LIMIT_SECONDS. For seeding,\n"
+                "restart the server with INGEST_RATE_LIMIT_SECONDS=0, or use a real\n"
+                "60s cadence with --interval 60."
+            ) from exc
+        raise
 
 
 def main() -> None:

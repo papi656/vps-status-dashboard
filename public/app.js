@@ -207,8 +207,9 @@ function renderProcesses(s) {
     `<tr><td colspan="5" class="dim">no process telemetry reported (names only, by design)</td></tr>`;
 }
 
-function renderReceiver(stats, sample) {
+function renderReceiver(stats, sample, guard = {}) {
   const cadence = stats.cadence_s ? `${stats.cadence_s}s` : "—";
+  const limit = guard.rate_limit_s ? `${guard.rate_limit_s}s / REQUEST` : "DISABLED";
   $("rx-kv").innerHTML =
     kvRow("LAST SAMPLE", sample ? `${ago(sample.age_s)}` : "—", sample && sample.age_s > 180 ? "amb" : "ok") +
     kvRow("SAMPLES STORED", fmtNum(stats.samples)) +
@@ -216,7 +217,9 @@ function renderReceiver(stats, sample) {
     kvRow("RETENTION", `${stats.retention_hours}h samples / ${stats.scan_retention_days}d scans`) +
     kvRow("STORE SIZE", fmtBytes(stats.db_bytes)) +
     kvRow("FIRST SAMPLE", stamp(stats.first_ts)) +
-    kvRow("INGEST AUTH", "BEARER TOKEN REQUIRED", "ok");
+    kvRow("INGEST AUTH", "BEARER TOKEN REQUIRED", "ok") +
+    kvRow("INGEST RATE LIMIT", limit, guard.rate_limit_s ? "" : "amb") +
+    kvRow("RATE-LIMITED HITS", fmtNum(guard.rejected || 0), guard.rejected ? "amb" : "");
 
   const cad = stats.cadence_s ? `${stats.cadence_s}s FIXED DB CADENCE` : "—";
   setText("chip-cadence", cad);
@@ -470,7 +473,7 @@ async function refreshCurrent() {
     renderMem(data.sample);
     renderNet(data.sample);
     renderProcesses(data.sample);
-    renderReceiver(data.stats, data.sample);
+    renderReceiver(data.stats, data.sample, data.ingest);
     renderScan(data.disk_scan);
     tickClock();
   } catch (err) {

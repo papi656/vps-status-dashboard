@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from . import db
 from .config import settings
 from .models import Snapshot
+from .ratelimit import MinIntervalLimiter
 
 log = logging.getLogger("vpsdash")
 
@@ -24,6 +25,8 @@ if not logging.getLogger().handlers:
         level=logging.INFO,
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
     )
+
+limiter = MinIntervalLimiter(settings.ingest_rate_limit_seconds)
 
 
 async def _retention_loop() -> None:
@@ -71,10 +74,50 @@ def require_auth(authorization: str | None = Header(default=None)) -> None:
         )
 
 
+def enforce_rate_limit() -> None:
+    """Global ingest gate. Runs after auth, before the body is parsed.
+
+    Auth first, deliberately: if an unauthenticated caller could trip the limiter,
+    anyone could lock the real agent out with a junk request every 30s.
+    """
+    wait = limiter.check()
+    if wait > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "ingest rate limited: at most one request per "
+                f"{settings.ingest_rate_limit_seconds}s"
+            ),
+            headers={"Retry-After": str(int(wait) + 1)},
+        )
+
+
+@app.middleware("http")
+async def limit_ingest_body(request, call_next):
+    """Refuse oversized ingest bodies before FastAPI parses them."""
+    if request.url.path == "/ingest":
+        raw = request.headers.get("content-length")
+        if raw is not None:
+            try:
+                length = int(raw)
+            except ValueError:
+                length = 0
+            if length > settings.max_body_bytes:
+                return JSONResponse(
+                    {"detail": f"payload too large (max {settings.max_body_bytes} bytes)"},
+                    status_code=413,
+                )
+    return await call_next(request)
+
+
 # --------------------------------------------------------------------- ingest (private)
 
 
-@app.post("/ingest", status_code=204, dependencies=[Depends(require_auth)])
+@app.post(
+    "/ingest",
+    status_code=204,
+    dependencies=[Depends(require_auth), Depends(enforce_rate_limit)],
+)
 def ingest(snapshot: Snapshot) -> Response:
     """Receive one snapshot from the agent. Bearer-authenticated, write-only."""
     db.store_snapshot(snapshot)
@@ -88,7 +131,9 @@ RANGES = {"1h": 3600, "6h": 6 * 3600, "24h": 24 * 3600}
 
 @app.get("/api/current")
 def api_current() -> JSONResponse:
-    return JSONResponse(db.get_current())
+    data = db.get_current()
+    data["ingest"] = _ingest_guard()
+    return JSONResponse(data)
 
 
 @app.get("/api/history")
@@ -114,6 +159,17 @@ def api_health() -> dict[str, object]:
         "samples": stats["samples"],
         "last_ts": last_ts,
         "last_age_s": (int(time.time()) - last_ts) if last_ts else None,
+        "ingest": _ingest_guard(),
+    }
+
+
+def _ingest_guard() -> dict[str, object]:
+    """Public view of the ingest protections, surfaced in the UI."""
+    return {
+        "rate_limit_s": settings.ingest_rate_limit_seconds,
+        "rejected": limiter.rejected,
+        "max_body_bytes": settings.max_body_bytes,
+        "clock_skew_s": settings.clock_skew_seconds,
     }
 
 

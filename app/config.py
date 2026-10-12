@@ -41,6 +41,18 @@ class Settings:
 
     ingest_token: str = field(default_factory=lambda: os.environ.get("INGEST_TOKEN", "dev"))
 
+    # Minimum seconds between accepted ingests. 30s is 2x the documented 60s cadence;
+    # set to 0 to disable (useful when seeding with scripts/replay.py).
+    ingest_rate_limit_seconds: int = field(
+        default_factory=lambda: _int("INGEST_RATE_LIMIT_SECONDS", 30)
+    )
+    # Reject ingest bodies larger than this before parsing them.
+    max_body_bytes: int = field(
+        default_factory=lambda: _int("MAX_INGEST_BODY_BYTES", 1_048_576)
+    )
+    # Allowed clock skew between the agent and this host, in seconds.
+    clock_skew_seconds: int = field(default_factory=lambda: _int("CLOCK_SKEW_SECONDS", 300))
+
     data_dir: Path = field(
         default_factory=lambda: Path(os.environ.get("DATA_DIR", ROOT / "data")).resolve()
     )

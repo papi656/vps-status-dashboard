@@ -67,6 +67,9 @@ All read from the environment, optionally via a local `.env` (see `.env.example`
 | `SAMPLE_RETENTION_HOURS` | `24` | Hours of 60s samples retained |
 | `SCAN_RETENTION_DAYS` | `7` | Days of 12h disk-space scans retained |
 | `PRUNE_INTERVAL_SECONDS` | `300` | How often the background retention task runs |
+| `INGEST_RATE_LIMIT_SECONDS` | `30` | Min seconds between accepted ingests (0 disables) |
+| `MAX_INGEST_BODY_BYTES` | `1048576` | Reject ingest bodies larger than this |
+| `CLOCK_SKEW_SECONDS` | `300` | Allowed agent/dashboard clock skew |
 
 ### Retention
 
@@ -90,13 +93,43 @@ The database file size is **bounded**: at 60 s cadence a 24 h window is ~1440 sa
 growing without limit. A physical `VACUUM` is not needed for that reason, but can be
 run by hand if you ever delete a large backlog at once.
 
+## Protecting the ingest route
+
+`POST /ingest` is the only writable surface, so it is defended in layers:
+
+| Layer | Behaviour |
+|---|---|
+| **Bearer auth** | Constant-time token compare; `401` before anything else runs |
+| **Rate limit** | At most one accepted request per `INGEST_RATE_LIMIT_SECONDS`; `429` with `Retry-After` |
+| **Body cap** | `413` for bodies over `MAX_INGEST_BODY_BYTES`, checked before parsing |
+| **Timestamp sanity** | `422` for a `ts` in the future, or older than the retention window |
+| **Collection caps** | `422` for oversized lists (cores, mounts, processes, scan items, paths) |
+
+The limiter is **global, not per-IP** — a single host with a single token, so one shared
+budget that can't be widened by rotating source addresses. Auth runs **before** the
+limiter on purpose: if an unauthenticated caller could consume the budget, anyone could
+lock the real agent out with one junk request every 30s.
+
+The timestamp check is the one that actually prevents permanent poisoning. Retention
+prunes on `ts < now - window`, so a row dated years into the future would **never** be
+reclaimed — a valid token could slowly fill the disk forever, one row per interval. The
+collection caps stop a single request from writing millions of rows or multi-megabyte
+path strings.
+
+The limiter is in-process (a restart resets the window, which only the operator can do),
+and its counters are exposed on `/api/health` and `/api/current`, then rendered in the UI
+as `INGEST RATE LIMIT` and `RATE-LIMITED HITS`.
+
+> **Seeding:** `scripts/replay.py` posts rapidly and will hit `429`. Restart the server
+> with `INGEST_RATE_LIMIT_SECONDS=0`, or use `--interval 60` to respect the limit.
+
 ## API
 
 Everything except `/ingest` is public and read-only.
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/ingest` | Bearer-authenticated. `204` on success, `401` bad token, `422` invalid payload |
+| `POST` | `/ingest` | Bearer-authenticated. `204` ok, `401` bad token, `429` rate limited, `413` body too large, `422` invalid payload |
 | `GET` | `/api/current` | Latest sample + disks + processes + derived rates + stats + latest disk scan |
 | `GET` | `/api/history?range=1h\|6h\|24h` | Downsampled series for the charts |
 | `GET` | `/api/disk` | Latest disk-space scan (top dirs / files) |
