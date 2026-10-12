@@ -35,6 +35,14 @@ html[data-theme="dark"] {
   --glow-cy: 0 0 6px rgba(194, 205, 0, 0.40);
   --glow-amb: 0 0 6px rgba(154, 165, 0, 0.45);
 
+  /* Chart series hues — distinct per trace so CPU / MEM / NET RX read at a glance.
+     Severity tokens above stay single-hue; only the history chart gets per-series color. */
+  --chart-cpu: #eaff00;
+  --chart-mem: #00e5ff;
+  --chart-net: #ff5c8a;
+  --glow-mem: 0 0 6px rgba(0, 229, 255, 0.45);
+  --glow-net: 0 0 6px rgba(255, 92, 138, 0.45);
+
   /* Fill/ink pair for solid blocks — bars, chips, markers. Day keeps these at true neon
      even though its text accents darken, so the highlights still read as neon on paper. */
   --fill-ok: #eaff00;
@@ -75,6 +83,13 @@ html[data-theme="light"] {
   --glow-ok: none;
   --glow-cy: none;
   --glow-amb: none;
+
+  /* Chart series hues — darkened inks for the Day bridge, same hues as Night. */
+  --chart-cpu: #5c6800;
+  --chart-mem: #007a8a;
+  --chart-net: #a8005c;
+  --glow-mem: none;
+  --glow-net: none;
 
   --fill-ok: #eaff00;
   --fill-cy: #d4e200;
@@ -300,8 +315,9 @@ main {
 .range-switch button.active { background: var(--neon); color: var(--neon-ink); }
 .range-switch button:hover:not(.active) { color: var(--text); background: var(--surface-high); }
 .legend { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
-.legend .sw { display: inline-block; width: 14px; height: 2px; margin-right: .3rem; vertical-align: middle; background: var(--ok); }
-.legend .sw.cy { background: var(--cy); } .legend .sw.amb { background: var(--amb); }
+.legend .sw { display: inline-block; width: 14px; height: 2px; margin-right: .3rem; vertical-align: middle; background: var(--chart-cpu); }
+.legend .sw.sw-mem { background: var(--chart-mem); }
+.legend .sw.sw-net { background: var(--chart-net); }
 .legend-note { margin-left: auto; color: var(--muted); }
 .chart { position: relative; }
 .chart svg { display: block; width: 100%; height: 220px; }
@@ -315,10 +331,7 @@ main {
   font-variant-numeric: tabular-nums;
 }
 .chart .ax { fill: var(--text-dim); }
-.chart .ax-net { fill: var(--amb); }
-/* One hue means the three series need a second channel: dash pattern. */
-.chart .series-mem { stroke-dasharray: 5 3; }
-.chart .series-net { stroke-dasharray: 2 3; }
+.chart .ax-net { fill: var(--chart-net); }
 .chart .ax-cap { fill: var(--muted); font-size: 9px; letter-spacing: .12em; }
 .chart-cursor {
   position: absolute; top: 0; bottom: 0; width: 1px;
@@ -329,9 +342,9 @@ main {
   transform: translate(-50%, -50%); pointer-events: none;
   border: 1px solid var(--bg);
 }
-.chart-dot.ok { background: var(--ok); }
-.chart-dot.cy { background: var(--cy); }
-.chart-dot.amb { background: var(--amb); }
+.chart-dot.dot-cpu { background: var(--chart-cpu); box-shadow: var(--glow-ok); }
+.chart-dot.dot-mem { background: var(--chart-mem); box-shadow: var(--glow-mem); }
+.chart-dot.dot-net { background: var(--chart-net); box-shadow: var(--glow-net); }
 .chart-cursor[hidden], .chart-dot[hidden], .chart-tip[hidden] { display: none; }
 .chart-tip {
   position: absolute; z-index: 6; pointer-events: none;
@@ -342,9 +355,9 @@ main {
 .chart-tip .tip-ts { color: var(--muted); margin-bottom: .15rem; letter-spacing: .06em; }
 .chart-tip .tip-row { display: flex; align-items: center; gap: .35rem; }
 .chart-tip .tip-row b { margin-left: auto; padding-left: .75rem; color: var(--text); }
-.chart-tip .sw { display: inline-block; width: 10px; height: 2px; background: var(--ok); }
-.chart-tip .sw.cy { background: var(--cy); }
-.chart-tip .sw.amb { background: var(--amb); }
+.chart-tip .sw { display: inline-block; width: 10px; height: 2px; background: var(--chart-cpu); }
+.chart-tip .sw.sw-mem { background: var(--chart-mem); }
+.chart-tip .sw.sw-net { background: var(--chart-net); }
 
 /* ------------------------------------------------------------------- lower */
 .lower { display: grid; grid-template-columns: 8fr 4fr; gap: .5rem; }

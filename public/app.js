@@ -338,22 +338,21 @@ function buildChart(history) {
       <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CPU, memory and network receive history">
         ${gridY}
         ${netTicks}
-        <path d="${area("rx", yNet)}" fill="var(--amb)" opacity="0.08"/>
-        <path d="${area("rx", yNet)}" fill="var(--fill-amb)" opacity="0.10"/>
-        <path class="series series-net" d="${line("rx", yNet)}" fill="none" stroke="var(--amb)" stroke-width="1" opacity="0.6"/>
-        <path d="${area("mem", yPct)}" fill="var(--fill-cy)" opacity="0.12"/>
-        <path class="series series-mem" d="${line("mem", yPct)}" fill="none" stroke="var(--cy)" stroke-width="1.4"/>
-        <path d="${area("cpu", yPct)}" fill="var(--fill-ok)" opacity="0.16"/>
-        <path class="series series-cpu" d="${line("cpu", yPct)}" fill="none" stroke="var(--ok)" stroke-width="1.6"/>
+        <path d="${area("rx", yNet)}" fill="var(--chart-net)" opacity="0.08"/>
+        <path class="series series-net" d="${line("rx", yNet)}" fill="none" stroke="var(--chart-net)" stroke-width="1" opacity="0.6"/>
+        <path d="${area("mem", yPct)}" fill="var(--chart-mem)" opacity="0.12"/>
+        <path class="series series-mem" d="${line("mem", yPct)}" fill="none" stroke="var(--chart-mem)" stroke-width="1.4"/>
+        <path d="${area("cpu", yPct)}" fill="var(--chart-cpu)" opacity="0.16"/>
+        <path class="series series-cpu" d="${line("cpu", yPct)}" fill="none" stroke="var(--chart-cpu)" stroke-width="1.6"/>
         ${ticks}
         <text x="4" y="${PT - 8}" class="ax ax-cap" text-anchor="start">PERCENT</text>
         <text x="${W - PR + 8}" y="${PT - 8}" class="ax ax-cap ax-net" text-anchor="start">NET RX</text>
       </svg>
     </div>
     <div class="chart-cursor" id="chart-cursor" hidden></div>
-    <span class="chart-dot ok" id="dot-cpu" hidden></span>
-    <span class="chart-dot cy" id="dot-mem" hidden></span>
-    <span class="chart-dot amb" id="dot-net" hidden></span>
+    <span class="chart-dot dot-cpu" id="dot-cpu" hidden></span>
+    <span class="chart-dot dot-mem" id="dot-mem" hidden></span>
+    <span class="chart-dot dot-net" id="dot-net" hidden></span>
     <div class="chart-tip" id="chart-tip" hidden></div>`;
 
   chartState = { data, W, H, PL, iw, yPct, yNet };
@@ -401,9 +400,9 @@ function bindChartHover() {
     tip.hidden = false;
     tip.innerHTML = `
       <div class="tip-ts">${stamp(p.ts)}</div>
-      <div class="tip-row"><i class="sw ok"></i>CPU <b>${fmtPct(p.cpu)}</b></div>
-      <div class="tip-row"><i class="sw cy"></i>MEM <b>${fmtPct(p.mem)}</b></div>
-      <div class="tip-row"><i class="sw amb"></i>NET RX <b>${fmtRate(p.rx)}</b></div>`;
+      <div class="tip-row"><i class="sw sw-cpu"></i>CPU <b>${fmtPct(p.cpu)}</b></div>
+      <div class="tip-row"><i class="sw sw-mem"></i>MEM <b>${fmtPct(p.mem)}</b></div>
+      <div class="tip-row"><i class="sw sw-net"></i>NET RX <b>${fmtRate(p.rx)}</b></div>`;
 
     const px = ratio * rect.width;
     const tw = tip.offsetWidth;
