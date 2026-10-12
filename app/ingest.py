@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hmac
 import logging
+import threading
 import time
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -32,6 +33,18 @@ log = logging.getLogger("vpsdash.ingest")
 
 limiter = MinIntervalLimiter(settings.ingest_rate_limit_seconds)
 _last_limit_log = 0.0
+_last_auth_log = 0.0
+
+# Counters so a failed ingest is diagnosable from the public API alone, without a
+# shell on the box: "samples: 0" cannot otherwise distinguish an agent that never
+# connected from one whose token was wrong.
+_counters_lock = threading.Lock()
+_counters = {"accepted": 0, "auth_failed": 0, "validation_failed": 0}
+
+
+def _bump(key: str) -> None:
+    with _counters_lock:
+        _counters[key] += 1
 
 # No docs/openapi here: this app should not describe itself to anyone who finds it.
 ingest_app = FastAPI(
@@ -44,13 +57,26 @@ ingest_app = FastAPI(
 
 def require_auth(authorization: str | None = Header(default=None)) -> None:
     """Route-level dependency, so auth is checked *before* the body is validated."""
+    global _last_auth_log
     expected = f"Bearer {settings.ingest_token}"
-    if not hmac.compare_digest(authorization or "", expected):
-        raise HTTPException(
-            status_code=401,
-            detail="unauthorized",
-            headers={"WWW-Authenticate": "Bearer"},
+    if hmac.compare_digest(authorization or "", expected):
+        return
+
+    _bump("auth_failed")
+    # Throttled: auth runs before the rate limiter, so unauthenticated attempts are
+    # unbounded and logging each one would itself be a way to fill the disk.
+    now = time.monotonic()
+    if now - _last_auth_log >= 60:
+        _last_auth_log = now
+        log.warning(
+            "ingest rejected (401): bad bearer token (%d total)",
+            _counters["auth_failed"],
         )
+    raise HTTPException(
+        status_code=401,
+        detail="unauthorized",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 def enforce_rate_limit() -> None:
@@ -108,6 +134,7 @@ async def log_validation_error(request: Request, exc: RequestValidationError) ->
     The agent has no retry (see its main loop), so a 422 here is a permanent gap in
     the timeline. Without this the rejection is completely silent.
     """
+    _bump("validation_failed")
     first = exc.errors()[0] if exc.errors() else {}
     loc = ".".join(str(p) for p in first.get("loc", ()) if p != "body") or "body"
     log.warning("ingest rejected (422) at '%s': %s", loc, first.get("msg", "invalid payload"))
@@ -122,14 +149,20 @@ async def log_validation_error(request: Request, exc: RequestValidationError) ->
 def ingest(snapshot: Snapshot) -> Response:
     """Receive one snapshot from the agent. Bearer-authenticated, write-only."""
     db.store_snapshot(snapshot)
+    _bump("accepted")
     return Response(status_code=204)
 
 
 def ingest_guard() -> dict[str, object]:
     """Public view of the ingest protections, surfaced in the UI."""
+    with _counters_lock:
+        snapshot = dict(_counters)
     return {
         "rate_limit_s": settings.ingest_rate_limit_seconds,
-        "rejected": limiter.rejected,
+        "rejected": limiter.rejected,  # 429s (rate limit)
+        "accepted": snapshot["accepted"],
+        "auth_failed": snapshot["auth_failed"],
+        "validation_failed": snapshot["validation_failed"],
         "max_body_bytes": settings.max_body_bytes,
         "clock_skew_s": settings.clock_skew_seconds,
         "ingest_port": settings.ingest_port,

@@ -131,6 +131,28 @@ survive.
 
 ---
 
+## Diagnosing without a shell on the box
+
+The ingest path is loopback-only, so it cannot be probed from the internet — but
+`/api/health` publishes counters that tell the failure modes apart remotely:
+
+```bash
+curl -s https://your-domain/api/health
+```
+
+| Reading | Meaning |
+|---|---|
+| `samples` climbing | working |
+| `samples: 0`, `accepted: 0`, `auth_failed: 0` | the agent **never reached** the container → check Ports Mappings (`127.0.0.1:8099:8099`), then that the agent service is running |
+| `auth_failed` climbing | the agent is connecting but the **token is wrong** → `TOKEN` ≠ `INGEST_TOKEN` |
+| `validation_failed` climbing | connecting and authorised, but the payload was **rejected** → the reason is in the container log |
+| `rejected` climbing | posting faster than `INGEST_RATE_LIMIT_SECONDS` |
+
+`accepted` counts stored snapshots, so `accepted > 0` with `samples: 0` should be
+impossible — if you ever see it, retention is deleting faster than ingest is writing.
+
+Counters are in-process, so they reset when the container restarts.
+
 ## Troubleshooting
 
 | Symptom | Cause |

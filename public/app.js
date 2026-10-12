@@ -221,6 +221,9 @@ function renderReceiver(stats, sample, guard = {}) {
     kvRow("FIRST SAMPLE", stamp(stats.first_ts)) +
     kvRow("INGEST AUTH", "BEARER TOKEN REQUIRED", "ok") +
     kvRow("INGEST RATE LIMIT", limit, guard.rate_limit_s ? "" : "amb") +
+    kvRow("ACCEPTED SAMPLES", fmtNum(guard.accepted || 0), guard.accepted ? "ok" : "") +
+    kvRow("AUTH FAILURES", fmtNum(guard.auth_failed || 0), guard.auth_failed ? "amb" : "") +
+    kvRow("REJECTED PAYLOADS", fmtNum(guard.validation_failed || 0), guard.validation_failed ? "amb" : "") +
     kvRow("RATE-LIMITED HITS", fmtNum(guard.rejected || 0), guard.rejected ? "amb" : "");
 
   const cad = stats.cadence_s ? `${stats.cadence_s}s FIXED DB CADENCE` : "—";
