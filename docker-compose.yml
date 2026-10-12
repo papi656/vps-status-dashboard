@@ -18,7 +18,7 @@ services:
       # The app refuses to start if this is empty.
       INGEST_TOKEN: ${INGEST_TOKEN:-}
       HOST: 0.0.0.0
-      PORT: "8098"
+      PUBLIC_PORT: "8098"
       INGEST_PORT: "8099"
       DATA_DIR: /data
       SAMPLE_RETENTION_HOURS: "24"
@@ -42,7 +42,7 @@ services:
         - CMD
         - python
         - -c
-        - "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8098/api/health', timeout=4).status == 200 else 1)"
+        - "import os, sys, urllib.request; p = os.environ.get('PUBLIC_PORT', '8098'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{p}/api/health', timeout=4).status == 200 else 1)"
       interval: 30s
       timeout: 5s
       retries: 3

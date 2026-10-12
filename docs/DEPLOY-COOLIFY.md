@@ -136,6 +136,7 @@ survive.
 | Symptom | Cause |
 |---|---|
 | App exits at startup: `INGEST_TOKEN is empty` | Set the env var |
+| Healthcheck fails, log shows `Connection refused` on the health port | Something injected `PORT` and the app used to honour it. Fixed: the port is now `PUBLIC_PORT`. Check the app log for `Ignoring platform PORT=…` |
 | Agent logs `401` | Token mismatch between `INGEST_TOKEN` and `TOKEN` |
 | Agent logs `429` | `INTERVAL_SECS` too close to `INGEST_RATE_LIMIT_SECONDS` |
 | Agent logs `422 ... in the future` | VPS clock ahead of the container; fix NTP or raise `CLOCK_SKEW_SECONDS` |

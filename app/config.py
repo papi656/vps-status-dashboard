@@ -38,9 +38,10 @@ def _int(name: str, default: int) -> int:
 class Settings:
     host: str = field(default_factory=lambda: os.environ.get("HOST", "0.0.0.0"))
     # Public surface: UI + read-only API. This is the port the reverse proxy routes.
-    # 8098 rather than 8099, because 8099 is reserved for ingest to match the
-    # serverStatus agent's built-in ENDPOINT (http://127.0.0.1:8099/ingest).
-    port: int = field(default_factory=lambda: _int("PORT", 8098))
+    # Deliberately NOT called PORT: hosting platforms (Coolify included) inject a
+    # generic PORT for their own routing, and honouring it silently moved this
+    # listener off the port the Dockerfile healthcheck probes.
+    public_port: int = field(default_factory=lambda: _int("PUBLIC_PORT", 8098))
     # Ingest surface: /ingest only. Published to host loopback, never routed publicly.
     ingest_port: int = field(default_factory=lambda: _int("INGEST_PORT", 8099))
 

@@ -74,7 +74,7 @@ All read from the environment, optionally via a local `.env` (see `.env.example`
 |---|---|---|
 | `INGEST_TOKEN` | `dev` | Bearer token for `POST /ingest`. **Empty refuses to start** |
 | `HOST` | `0.0.0.0` | Bind address for both listeners |
-| `PORT` | `8098` | **Public** surface: UI + read API. Route this one |
+| `PUBLIC_PORT` | `8098` | **Public** surface: UI + read API. Route this one. Deliberately not `PORT` — platforms inject that for their own routing |
 | `INGEST_PORT` | `8099` | **Ingest** surface. Publish to loopback; never route. Matches the agent's default ENDPOINT |
 | `ENABLE_DOCS` | *off* | Set `1` to expose `/docs` and `/openapi.json` |
 | `DATA_DIR` | `./data` | Directory for the SQLite database |

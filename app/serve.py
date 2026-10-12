@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 
 import uvicorn
 
@@ -25,12 +26,12 @@ log = logging.getLogger("vpsdash")
 
 def _preflight() -> None:
     """Fail fast on configurations that would defeat the split or the auth."""
-    if settings.ingest_port == settings.port:
+    if settings.public_port == settings.ingest_port:
         raise SystemExit(
-            "INGEST_PORT and PORT must differ — with one port the ingest surface "
-            "would be publicly routable."
+            "PUBLIC_PORT and INGEST_PORT must differ — with one port the ingest "
+            "surface would be publicly routable."
         )
-    if not settings.ingest_token.strip():
+    if settings.ingest_token.strip() == "":
         raise SystemExit(
             "INGEST_TOKEN is empty — refusing to start, since an empty token is "
             "effectively no authentication. Set it to a strong secret."
@@ -40,17 +41,29 @@ def _preflight() -> None:
             "INGEST_TOKEN is still the default 'dev'. This value is in a public "
             "repository — set a strong secret before exposing this host."
         )
+    # A platform-injected PORT used to silently relocate the public surface. Say so
+    # rather than let it look like the app ignored the setting.
+    platform_port = os.environ.get("PORT")
+    if platform_port and platform_port != str(settings.public_port):
+        log.warning(
+            "Ignoring platform PORT=%s — this app listens on PUBLIC_PORT=%d "
+            "(UI/API) and INGEST_PORT=%d (/ingest). Set the proxy to route %d.",
+            platform_port,
+            settings.public_port,
+            settings.ingest_port,
+            settings.public_port,
+        )
 
 
 async def _serve() -> None:
     public = uvicorn.Server(
-        uvicorn.Config(public_app, host=settings.host, port=settings.port, log_level="info")
+        uvicorn.Config(public_app, host=settings.host, port=settings.public_port, log_level="info")
     )
     ingest = uvicorn.Server(
         uvicorn.Config(ingest_app, host=settings.host, port=settings.ingest_port, log_level="info")
     )
 
-    log.info("public surface on %s:%d  — route this one", settings.host, settings.port)
+    log.info("public surface on %s:%d  — route this one", settings.host, settings.public_port)
     log.info(
         "ingest surface on %s:%d/ingest  — host loopback only, never route this",
         settings.host,

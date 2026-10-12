@@ -28,6 +28,6 @@ VOLUME ["/data"]
 EXPOSE 8098 8099
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8098/api/health', timeout=4).status == 200 else 1)"]
+    CMD ["python", "-c", "import os, sys, urllib.request; p = os.environ.get('PUBLIC_PORT', '8098'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{p}/api/health', timeout=4).status == 200 else 1)"]
 
 CMD ["python", "-m", "app.serve"]
