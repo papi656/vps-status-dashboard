@@ -117,7 +117,7 @@ function renderDisks(s) {
     disks
       .map((d, i) => {
         const w = total ? (d.used / total) * 100 : 0;
-        const color = `var(--${palette[i % palette.length]})`;
+        const color = `var(--fill-${palette[i % palette.length]})`;
         return `<span class="seg" style="width:${w}%;background:${color}" title="${escapeHtml(d.mount)} ${escapeHtml(fmtBytes(d.used))}"></span>`;
       })
       .join("") + `<span class="seg free" style="flex:1"></span>`;
@@ -150,7 +150,7 @@ function renderMem(s) {
   setText("mem-meta", pct >= 90 ? "CRITICAL > 90%" : pct >= 75 ? "CAUTION > 75%" : "NOMINAL");
 
   const usedW = clamp(m.total ? (m.used / m.total) * 100 : 0, 0, 100);
-  const color = t === "err" ? "var(--err)" : t === "amb" ? "var(--amb)" : "var(--ok)";
+  const color = `var(--fill-${t || "ok"})`;
   $("mem-bar").innerHTML =
     `<span class="seg" style="width:${usedW}%;background:${color}"></span>` +
     `<span class="seg free" style="flex:1"></span>`;
@@ -202,7 +202,7 @@ function renderProcesses(s) {
           <td class="name">${escapeHtml(p.name)}</td>
           <td class="mono">${p.cpu_pct.toFixed(1)}%</td>
           <td class="mono">${p.mem_pct.toFixed(1)}%</td>
-          <td class="bar-cell"><span class="bar-inline"><i class="ok" style="width:${cw}%;background:var(--ok)"></i><i style="width:${mw}%;background:var(--cy)"></i></span></td>
+          <td class="bar-cell"><span class="bar-inline"><i class="ok" style="width:${cw}%;background:var(--fill-ok)"></i><i style="width:${mw}%;background:var(--fill-cy)"></i></span></td>
         </tr>`;
       })
       .join("") ||
@@ -248,7 +248,7 @@ function renderScan(scan) {
         const w = (i.bytes / max) * 100;
         const label = i.path.length > 26 ? "…" + i.path.slice(-25) : i.path;
         return `<div class="row"><span class="k" title="${escapeHtml(i.path)}">${escapeHtml(label)}</span><span class="v">${fmtBytes(i.bytes)}</span></div>
-          <div class="bar-inline" style="margin-bottom:.25rem"><i style="width:${w}%;background:var(--ok)"></i></div>`;
+          <div class="bar-inline" style="margin-bottom:.25rem"><i style="width:${w}%;background:var(--fill-ok)"></i></div>`;
       })
       .join("");
   };
@@ -339,11 +339,12 @@ function buildChart(history) {
         ${gridY}
         ${netTicks}
         <path d="${area("rx", yNet)}" fill="var(--amb)" opacity="0.08"/>
-        <path d="${line("rx", yNet)}" fill="none" stroke="var(--amb)" stroke-width="1" opacity="0.5"/>
-        <path d="${area("mem", yPct)}" fill="var(--cy)" opacity="0.10"/>
-        <path d="${line("mem", yPct)}" fill="none" stroke="var(--cy)" stroke-width="1.4"/>
-        <path d="${area("cpu", yPct)}" fill="var(--ok)" opacity="0.14"/>
-        <path d="${line("cpu", yPct)}" fill="none" stroke="var(--ok)" stroke-width="1.6"/>
+        <path d="${area("rx", yNet)}" fill="var(--fill-amb)" opacity="0.10"/>
+        <path class="series series-net" d="${line("rx", yNet)}" fill="none" stroke="var(--amb)" stroke-width="1" opacity="0.6"/>
+        <path d="${area("mem", yPct)}" fill="var(--fill-cy)" opacity="0.12"/>
+        <path class="series series-mem" d="${line("mem", yPct)}" fill="none" stroke="var(--cy)" stroke-width="1.4"/>
+        <path d="${area("cpu", yPct)}" fill="var(--fill-ok)" opacity="0.16"/>
+        <path class="series series-cpu" d="${line("cpu", yPct)}" fill="none" stroke="var(--ok)" stroke-width="1.6"/>
         ${ticks}
         <text x="4" y="${PT - 8}" class="ax ax-cap" text-anchor="start">PERCENT</text>
         <text x="${W - PR + 8}" y="${PT - 8}" class="ax ax-cap ax-net" text-anchor="start">NET RX</text>

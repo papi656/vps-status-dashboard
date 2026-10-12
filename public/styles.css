@@ -22,47 +22,69 @@ html[data-theme="dark"] {
   --outline: #4b4a3a;
   --line: #26261f;
 
-  --ok: #eaff00;
-  --ok-ink: #191b00;
-  --cy: #00e3fd;
-  --cy-ink: #00252b;
-  --amb: #ffba27;
-  --err: #ff6b6b;
+  /* Single hue: neon yellow. Severity reads as luminance + fill, never a second hue. */
+  --neon: #eaff00;
+  --neon-ink: #14170a;
+
+  --ok: #eaff00;   /* nominal   — full neon       */
+  --cy: #c2cd00;   /* secondary — slightly dimmed */
+  --amb: #9aa500;  /* warning   — dimmed further  */
+  --err: #f4ff5c;  /* critical  — hottest core    */
 
   --glow-ok: 0 0 6px rgba(234, 255, 0, 0.45);
-  --glow-cy: 0 0 6px rgba(0, 227, 253, 0.45);
-  --glow-amb: 0 0 6px rgba(255, 186, 39, 0.5);
+  --glow-cy: 0 0 6px rgba(194, 205, 0, 0.40);
+  --glow-amb: 0 0 6px rgba(154, 165, 0, 0.45);
+
+  /* Fill/ink pair for solid blocks — bars, chips, markers. Day keeps these at true neon
+     even though its text accents darken, so the highlights still read as neon on paper. */
+  --fill-ok: #eaff00;
+  --fill-cy: #c2cd00;
+  --fill-amb: #9aa500;
+  --fill-err: #f4ff5c;
+  --fill-ink: #14170a;
 
   color-scheme: dark;
 }
 
 html[data-theme="light"] {
-  --bg: #eceee9;
-  --surface: #f8f9f6;
+  --bg: #f4f5f1;
+  --surface: #ffffff;
   --surface-low: #ffffff;
-  --surface-mid: #f1f3ef;
-  --surface-high: #e5e8e2;
-  --surface-highest: #d5d9d2;
-  --track: #e2e5df;
+  --surface-mid: #f5f6f2;
+  --surface-high: #ebede7;
+  --surface-highest: #c4c7bd;   /* strong borders — Day is high-contrast, not washed out */
+  --track: #e9ebe4;
 
-  --text: #14181a;
-  --text-dim: #4a4a42;
-  --muted: #737165;
-  --outline: #c8c5be;
-  --line: #e3e0d8;
+  --text: #1a1b17;
+  --text-dim: #43453d;
+  --muted: #70726a;
+  --outline: #adafa5;
+  --line: #e4e6e0;
 
-  --ok: #8a7200;
-  --ok-ink: #fffce8;
-  --cy: #006d7c;
-  --cy-ink: #e2fbff;
-  --amb: #8a5a00;
-  --err: #b3261e;
+  /* Neon is unreadable as ink on paper, so text accents are the same hue darkened —
+     which means green-leading (G >= R), the way neon #eaff00 is. Orange-leading dark
+     yellows (R > G) are what read as brown. Fills keep the true neon. */
+  --neon: #eaff00;
+  --neon-ink: #14170a;
+
+  --ok: #5c6800;
+  --cy: #4d5810;
+  --amb: #6d7800;
+  --err: #5c6800;
 
   --glow-ok: none;
   --glow-cy: none;
   --glow-amb: none;
 
-  color-scheme: light;
+  --fill-ok: #eaff00;
+  --fill-cy: #d4e200;
+  --fill-amb: #bcc800;
+  --fill-err: #eaff00;
+  --fill-ink: #14170a;
+
+  /* `only` opts the Day theme out of browser force-dark, which otherwise inverts it
+     into a muddy olive on a dark-OS machine instead of showing the real palette. */
+  color-scheme: only light;
 }
 
 * { box-sizing: border-box; }
@@ -108,11 +130,11 @@ body {
 .badge .glyph { font-size: 12px; color: var(--muted); }
 .badge.ok .label { color: var(--ok); }
 .badge .dot {
-  width: 8px; height: 8px; background: var(--ok); box-shadow: var(--glow-ok);
+  width: 8px; height: 8px; background: var(--fill-ok); box-shadow: var(--glow-ok);
 }
 .badge.stale { border-color: var(--amb); }
 .badge.stale .label { color: var(--amb); }
-.badge.stale .dot { background: var(--amb); box-shadow: var(--glow-amb); }
+.badge.stale .dot { background: var(--fill-amb); box-shadow: var(--glow-amb); }
 
 .topbar-stat { display: flex; align-items: center; gap: .35rem; font-size: 10px; letter-spacing: .06em; }
 .topbar-stat .k { color: var(--muted); }
@@ -127,7 +149,7 @@ body {
   border: 0; border-right: 1px solid var(--outline);
 }
 .theme-switch button:last-child { border-right: 0; }
-.theme-switch button.active { background: var(--ok); color: var(--ok-ink); }
+.theme-switch button.active { background: var(--neon); color: var(--neon-ink); }
 .theme-switch button:hover:not(.active) { color: var(--text); background: var(--surface-high); }
 
 /* ---------------------------------------------------------------------- main */
@@ -161,7 +183,7 @@ main {
 }
 .banner-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; }
 .banner-id { display: flex; align-items: center; gap: .6rem; }
-.square { width: 12px; height: 12px; background: var(--ok); box-shadow: var(--glow-ok); flex: none; }
+.square { width: 12px; height: 12px; background: var(--fill-ok); box-shadow: var(--glow-ok); flex: none; }
 .banner-title { font-size: 14px; font-weight: 700; letter-spacing: .06em; color: var(--ok); }
 .banner-title .tag {
   font-size: 9px; padding: 0 .3rem; margin-left: .35rem;
@@ -207,9 +229,9 @@ main {
   text-transform: uppercase; color: var(--text);
 }
 .panel-meta { font-size: 9px; color: var(--muted); letter-spacing: .08em; white-space: nowrap; }
-.dot { width: 8px; height: 8px; flex: none; background: var(--ok); }
-.dot.cy { background: var(--cy); box-shadow: var(--glow-cy); }
-.dot.amb { background: var(--amb); box-shadow: var(--glow-amb); }
+.dot { width: 8px; height: 8px; flex: none; background: var(--fill-ok); }
+.dot.cy { background: var(--fill-cy); box-shadow: var(--glow-cy); }
+.dot.amb { background: var(--fill-amb); box-shadow: var(--glow-amb); }
 
 .big-row { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; margin-bottom: .4rem; }
 .big-value { font-size: 30px; font-weight: 700; line-height: 1.05; letter-spacing: -.02em; color: var(--text); }
@@ -222,19 +244,19 @@ main {
 .right-note { text-align: right; font-size: 10px; color: var(--text); }
 .state {
   font-size: 9px; font-weight: 700; letter-spacing: .1em; padding: .15rem .35rem;
-  background: var(--ok); color: var(--ok-ink);
+  background: var(--fill-ok); color: var(--fill-ink);
 }
-.state.warn { background: var(--amb); color: #241700; }
-.state.crit { background: var(--err); color: #2a0500; }
+.state.warn { background: var(--fill-amb); color: var(--fill-ink); }
+.state.crit { background: var(--fill-err); color: var(--fill-ink); }
 
 /* per-core matrix */
 .cores { display: flex; flex-direction: column; gap: .2rem; margin-bottom: .4rem; }
 .core-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: 10px; color: var(--text-dim); }
 .core-track { flex: 1; height: 6px; background: var(--track); overflow: hidden; }
-.core-fill { height: 100%; background: var(--ok); }
-.core-fill.cy { background: var(--cy); }
-.core-fill.amb { background: var(--amb); }
-.core-fill.err { background: var(--err); }
+.core-fill { height: 100%; background: var(--fill-ok); }
+.core-fill.cy { background: var(--fill-cy); }
+.core-fill.amb { background: var(--fill-amb); }
+.core-fill.err { background: var(--fill-err); }
 
 .mini { background: var(--surface-low); border: 1px solid var(--surface-highest); padding: .25rem; }
 .mini svg { display: block; width: 100%; height: 44px; }
@@ -275,7 +297,7 @@ main {
   border: 0; border-right: 1px solid var(--outline);
 }
 .range-switch button:last-child { border-right: 0; }
-.range-switch button.active { background: var(--cy); color: var(--cy-ink); }
+.range-switch button.active { background: var(--neon); color: var(--neon-ink); }
 .range-switch button:hover:not(.active) { color: var(--text); background: var(--surface-high); }
 .legend { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: .35rem; }
 .legend .sw { display: inline-block; width: 14px; height: 2px; margin-right: .3rem; vertical-align: middle; background: var(--ok); }
@@ -294,6 +316,9 @@ main {
 }
 .chart .ax { fill: var(--text-dim); }
 .chart .ax-net { fill: var(--amb); }
+/* One hue means the three series need a second channel: dash pattern. */
+.chart .series-mem { stroke-dasharray: 5 3; }
+.chart .series-net { stroke-dasharray: 2 3; }
 .chart .ax-cap { fill: var(--muted); font-size: 9px; letter-spacing: .12em; }
 .chart-cursor {
   position: absolute; top: 0; bottom: 0; width: 1px;
@@ -342,8 +367,8 @@ main {
 .proc-table .name { color: var(--text); font-weight: 600; }
 .proc-table .bar-cell { width: 40%; }
 .bar-inline { display: inline-flex; width: 100%; height: 6px; background: var(--track); }
-.bar-inline i { display: block; height: 100%; background: var(--ok); }
-.bar-inline i.cy { background: var(--cy); }
+.bar-inline i { display: block; height: 100%; background: var(--fill-ok); }
+.bar-inline i.cy { background: var(--fill-cy); }
 
 /* ring buffer */
 .ring { margin-top: .5rem; padding-top: .4rem; border-top: 1px solid var(--surface-high); }
