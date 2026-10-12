@@ -1,0 +1,51 @@
+# VPS Status Dashboard
+#
+# Two listeners, one process:
+#   8099  public surface  (UI + read-only API)  -> route this through the proxy
+#   8098  ingest surface  (/ingest only)        -> published to host loopback only
+#
+# The agent runs on this same host and posts to http://127.0.0.1:8098/ingest.
+# Because 8098 is never routed, /ingest is unreachable from the internet even if the
+# reverse proxy is configured badly.
+
+services:
+  dashboard:
+    build: .
+    restart: unless-stopped
+    environment:
+      # REQUIRED. Shared secret with the agent; generate with `openssl rand -hex 32`.
+      # The app refuses to start if this is empty.
+      INGEST_TOKEN: ${INGEST_TOKEN:-}
+      HOST: 0.0.0.0
+      PORT: "8099"
+      INGEST_PORT: "8098"
+      DATA_DIR: /data
+      SAMPLE_RETENTION_HOURS: "24"
+      SCAN_RETENTION_DAYS: "7"
+      PRUNE_INTERVAL_SECONDS: "300"
+      # Must stay comfortably below the agent's INTERVAL_SECS (default 60).
+      INGEST_RATE_LIMIT_SECONDS: "30"
+      MAX_INGEST_BODY_BYTES: "1048576"
+      CLOCK_SKEW_SECONDS: "300"
+      # ENABLE_DOCS: "1"   # interactive docs advertise the ingest contract; off by default
+    volumes:
+      # Persistent SQLite. Without this, every redeploy wipes the history.
+      - dashboard-data:/data
+    expose:
+      - "8099"
+    ports:
+      # Host loopback only. The agent posts here; the internet cannot reach it.
+      - "127.0.0.1:8098:8098"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8099/api/health', timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  dashboard-data:

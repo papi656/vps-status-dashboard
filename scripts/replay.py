@@ -10,6 +10,8 @@ Examples:
 
     # hammer 200 samples rapidly (good for chart/ring-buffer checks)
     python scripts/replay.py --count 200 --interval 0
+
+The ingest surface listens on 8098 (see app/serve.py); the public UI is on 8099.
 """
 
 from __future__ import annotations
@@ -122,7 +124,7 @@ def post(url: str, token: str, payload: dict) -> int:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--url", default="http://127.0.0.1:8099/ingest")
+    ap.add_argument("--url", default="http://127.0.0.1:8098/ingest")
     ap.add_argument("--token", default="dev")
     ap.add_argument("--count", type=int, default=1)
     ap.add_argument("--interval", type=float, default=0.0, help="seconds between posts")

@@ -7,14 +7,23 @@ A small agent running on a VPS POSTs one JSON snapshot per minute to `POST /inge
 This service validates, stores it in SQLite and renders a single-page console UI
 inspired by a military instrumentation aesthetic, with **night** and **day** themes.
 
+It listens on **two ports**: a public one for the UI and read API, and a separate ingest
+surface that is never routed publicly — so `/ingest` is unreachable from the internet
+by topology, not by a reverse-proxy rule that has to be configured correctly.
+
 ```
- VPS                                        this service
-┌──────────────────┐   POST /ingest    ┌───────────────────────────────┐
-│ serverStatus     │  Bearer token     │ FastAPI                       │
-│ agent (60s loop) │ ────────────────► │  ├─ validate (Pydantic)       │
-│                  │   204 No Content  │  ├─ store (SQLite, WAL)       │
-└──────────────────┘                   │  └─ serve static UI + read API│
-                                       └───────────────────────────────┘
+                                          this service (one process)
+  VPS                                  ┌──────────────────────────────────┐
+┌────────────────┐  POST :8098/ingest   │ ingest surface   :8098           │
+│ serverStatus   │  Bearer token        │  ├─ auth (constant time)         │
+│ agent (60s)    │ ───────────────────► │  ├─ rate limit                   │
+└────────────────┘  204 / 401 / 429     │  ├─ validate (Pydantic)          │
+        host loopback only               │  └─ store (SQLite, WAL)          │
+                                        │                                  │
+   browser ──► proxy ──► :8099          │ public surface   :8099           │
+                                        │  ├─ GET /api/*   (read-only)     │
+                                        │  └─ static dashboard UI          │
+                                        └──────────────────────────────────┘
 ```
 
 ## Stack
@@ -31,7 +40,7 @@ uv venv .venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 
 cp .env.example .env          # set INGEST_TOKEN
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8099
+python -m app.serve           # 8099 = UI + read API, 8098 = ingest
 ```
 
 Open <http://127.0.0.1:8099/>. With no data yet the UI shows an "awaiting
@@ -48,11 +57,14 @@ python scripts/replay.py --once                # a single snapshot
 python scripts/replay.py --count 200 --interval 0
 ```
 
-The real agent should point at the same place:
+The real agent posts to the **ingest** port, which is not the one you open in a browser:
 
 ```bash
-TOKEN=dev ENDPOINT=http://127.0.0.1:8099/ingest ./server-status-agent --once
+TOKEN=dev ENDPOINT=http://127.0.0.1:8098/ingest ./server-status-agent --once
 ```
+
+> `python -m app.serve` is the entrypoint because it starts both listeners. Running
+> `uvicorn app.main:app` alone gives you the read-only surface with no ingest route at all.
 
 ## Configuration
 
@@ -60,8 +72,11 @@ All read from the environment, optionally via a local `.env` (see `.env.example`
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `INGEST_TOKEN` | `dev` | Bearer token required by `POST /ingest` |
-| `HOST` / `PORT` | `0.0.0.0` / `8099` | Bind address (8099 matches the agent default) |
+| `INGEST_TOKEN` | `dev` | Bearer token for `POST /ingest`. **Empty refuses to start** |
+| `HOST` | `0.0.0.0` | Bind address for both listeners |
+| `PORT` | `8099` | **Public** surface: UI + read API. Route this one |
+| `INGEST_PORT` | `8098` | **Ingest** surface. Publish to loopback; never route |
+| `ENABLE_DOCS` | *off* | Set `1` to expose `/docs` and `/openapi.json` |
 | `DATA_DIR` | `./data` | Directory for the SQLite database |
 | `DB_PATH` | `$DATA_DIR/status.db` | Explicit database path |
 | `SAMPLE_RETENTION_HOURS` | `24` | Hours of 60s samples retained |
@@ -99,6 +114,7 @@ run by hand if you ever delete a large backlog at once.
 
 | Layer | Behaviour |
 |---|---|
+| **Separate port** | Served on `INGEST_PORT`, which the proxy never routes — unreachable publicly by topology |
 | **Bearer auth** | Constant-time token compare; `401` before anything else runs |
 | **Rate limit** | At most one accepted request per `INGEST_RATE_LIMIT_SECONDS`; `429` with `Retry-After` |
 | **Body cap** | `413` for bodies over `MAX_INGEST_BODY_BYTES`, checked before parsing |
@@ -159,23 +175,33 @@ If the box has no reliable NTP, raise `CLOCK_SKEW_SECONDS`.
 
 ## API
 
-Everything except `/ingest` is public and read-only.
+Two surfaces, two ports. Everything on the public port is read-only; the only write
+endpoint in the service lives on the ingest port.
+
+**Ingest surface — `:8098`**
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/ingest` | Bearer-authenticated. `204` ok, `401` bad token, `429` rate limited, `413` body too large, `422` invalid payload |
+| `POST` | `/ingest` | Bearer-authenticated. `204` ok, `401` bad token, `429` rate limited, `413` body too large, `422` invalid payload. Nothing else exists here. |
+
+**Public surface — `:8099`**
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/` | The dashboard UI |
 | `GET` | `/api/current` | Latest sample + disks + processes + derived rates + stats + latest disk scan |
 | `GET` | `/api/history?range=1h\|6h\|24h` | Downsampled series for the charts |
 | `GET` | `/api/disk` | Latest disk-space scan (top dirs / files) |
 | `GET` | `/api/health` | Small JSON status |
-| `GET` | `/docs` | Auto-generated OpenAPI reference |
+| `GET` | `/docs` | Only when `ENABLE_DOCS=1` — off by default, it advertises the ingest contract |
 
 ### Derived values
 
 `net` and `diskio` arrive as **cumulative counters**. The API computes per-second
-rates as `(current - previous) / (ts_current - ts_previous)`. A **negative delta
-means the machine rebooted**, so the response sets `reset: true` and the UI shows a
-reset instead of a bogus value.
+rates as `(current - previous) / (ts_current - ts_previous)`. A negative delta alone is
+not enough to call a reboot — the agent sums across interfaces and devices, so losing one
+also goes backwards. The response sets `reset: true` only when `uptime_s` fell as well,
+and otherwise clamps the rate to `0`.
 
 `disk_space` only changes when `scanned_at` changes; scans are deduplicated so a
 scan is stored once per 12h rather than once per 60s sample. A scan may be up to
@@ -189,14 +215,24 @@ initial theme follows `prefers-color-scheme`.
 
 ## Deploying
 
-Keep the ingest route off the public internet. Two common options:
+**Coolify / Docker:** see [`docs/DEPLOY-COOLIFY.md`](docs/DEPLOY-COOLIFY.md) for the full
+walkthrough. The short version:
 
-1. **Bind to loopback, reverse-proxy only the UI.** Run on `127.0.0.1:8099` and let
-   Caddy/nginx expose only `/`, `/api/*`, `/styles.css`, `/app.js` publicly while
-   `/ingest` is reachable by the agent over a private network or SSH tunnel.
-2. **Expose `/ingest` but require the bearer token**, and rate-limit it at the proxy.
+```bash
+cp .env.example .env && echo "INGEST_TOKEN=$(openssl rand -hex 32)" >> .env
+docker compose up -d --build
+```
 
-Example systemd unit:
+Route **8099** through the proxy; **8098** is published to host loopback for the agent
+and must never be routed.
+
+Three things will bite you if skipped:
+
+1. **Set `INGEST_TOKEN`.** Empty refuses to start; `dev` logs a warning and is public.
+2. **Persist `/data`.** Otherwise every redeploy wipes the history.
+3. **Publish only loopback for the ingest port** — `127.0.0.1:8098:8098`, not `8098:8098`.
+
+**Bare metal / systemd**, if you'd rather not use containers:
 
 ```ini
 [Unit]
@@ -206,13 +242,18 @@ After=network.target
 [Service]
 WorkingDirectory=/opt/status-dashboard
 EnvironmentFile=/opt/status-dashboard/.env
-ExecStart=/opt/status-dashboard/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8099
+ExecStart=/opt/status-dashboard/.venv/bin/python -m app.serve
 Restart=always
 User=www-data
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+Running as a plain process means both listeners share the host's network namespace, so
+the isolation above depends on the proxy only forwarding `8099` — and on the ingest port
+not being reachable from outside (bind `HOST=127.0.0.1` if the proxy runs on the same
+host and the agent is local).
 
 ## Notes on the payload
 

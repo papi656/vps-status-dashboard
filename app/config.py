@@ -37,7 +37,16 @@ def _int(name: str, default: int) -> int:
 @dataclass(frozen=True)
 class Settings:
     host: str = field(default_factory=lambda: os.environ.get("HOST", "0.0.0.0"))
+    # Public surface: UI + read-only API. This is the port the reverse proxy routes.
     port: int = field(default_factory=lambda: _int("PORT", 8099))
+    # Ingest surface: /ingest only. Published to host loopback, never routed publicly.
+    ingest_port: int = field(default_factory=lambda: _int("INGEST_PORT", 8098))
+
+    # Interactive API docs. Off by default: they advertise the ingest contract.
+    enable_docs: bool = field(
+        default_factory=lambda: os.environ.get("ENABLE_DOCS", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
 
     ingest_token: str = field(default_factory=lambda: os.environ.get("INGEST_TOKEN", "dev"))
 

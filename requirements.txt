@@ -1,3 +1,5 @@
-fastapi>=0.115,<1.0
-uvicorn[standard]>=0.30,<1.0
-pydantic>=2.7,<3.0
+# Pinned for reproducible deploys — a routine `docker build` should not be able to
+# change the runtime. Bump deliberately and re-run the test suite.
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
