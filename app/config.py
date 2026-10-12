@@ -38,9 +38,11 @@ def _int(name: str, default: int) -> int:
 class Settings:
     host: str = field(default_factory=lambda: os.environ.get("HOST", "0.0.0.0"))
     # Public surface: UI + read-only API. This is the port the reverse proxy routes.
-    port: int = field(default_factory=lambda: _int("PORT", 8099))
+    # 8098 rather than 8099, because 8099 is reserved for ingest to match the
+    # serverStatus agent's built-in ENDPOINT (http://127.0.0.1:8099/ingest).
+    port: int = field(default_factory=lambda: _int("PORT", 8098))
     # Ingest surface: /ingest only. Published to host loopback, never routed publicly.
-    ingest_port: int = field(default_factory=lambda: _int("INGEST_PORT", 8098))
+    ingest_port: int = field(default_factory=lambda: _int("INGEST_PORT", 8099))
 
     # Interactive API docs. Off by default: they advertise the ingest contract.
     enable_docs: bool = field(

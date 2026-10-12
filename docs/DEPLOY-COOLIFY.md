@@ -4,12 +4,17 @@ Two listeners in one container:
 
 | Port | Surface | Exposure |
 |---|---|---|
-| `8099` | dashboard UI + read-only `/api/*` | **route this** through the proxy |
-| `8098` | `POST /ingest` only | publish to host loopback; **never route** |
+| `8099` | `POST /ingest` only | publish to host loopback; **never route** |
+| `8098` | dashboard UI + read-only `/api/*` | **route this** through the proxy |
 
-The agent runs on the same host and posts to `http://127.0.0.1:8098/ingest`. Because the
-proxy only ever reaches `8099`, `/ingest` is unreachable from the internet — a
-misconfigured proxy can expose the read-only UI but not a writable endpoint.
+The agent runs on the same host and posts to `http://127.0.0.1:8099/ingest` — its
+built-in `ENDPOINT` default, so no agent-side change is needed. `8099` is deliberately
+not the port the proxy routes: because the proxy only ever reaches `8098`, `/ingest` is
+unreachable from the internet — a misconfigured proxy can expose the read-only UI but not
+a writable endpoint.
+
+The endpoint is **plain HTTP on loopback**. The agent sends `ENDPOINT` over HTTP, so it
+must stay a local/private address rather than the public TLS domain.
 
 ---
 
@@ -20,8 +25,8 @@ misconfigured proxy can expose the read-only UI but not a writable endpoint.
 - **Docker Compose** — use the `docker-compose.yml` in this repo unchanged. It already
   declares the volume, the loopback port publish, and the healthcheck.
 - **Dockerfile** — Coolify needs two settings that the Dockerfile cannot express:
-  - **Ports Exposes** = `8099` (this is what Traefik routes)
-  - **Ports Mappings** = `127.0.0.1:8098:8098` (host loopback → ingest)
+  - **Ports Exposes** = `8098` (this is what Traefik routes)
+  - **Ports Mappings** = `127.0.0.1:8099:8099` (host loopback → ingest)
 
 ## 2. Environment variables
 
@@ -63,7 +68,7 @@ sudo mkdir -p /opt/vpsdash-data && sudo chown 10001:10001 /opt/vpsdash-data
 
 ## 4. Domain
 
-Assign your domain to the service and make sure it targets **`8099`**. Do not add a
+Assign your domain to the service and make sure it targets **`8098`**. Do not add a
 second domain or route for the ingest port.
 
 ## 5. Verify from outside
@@ -79,7 +84,7 @@ curl -s -o /dev/null -w '%{http_code}\n' $D/docs             # 404 — good
 ```
 
 If `POST $D/ingest` ever returns `401`, that is a **failure** — it means the ingest
-surface is reachable publicly. Check that the proxy routes only `8099`.
+surface is reachable publicly. Check that the proxy routes only `8098`.
 
 ## 6. Deploy the agent (on the same host)
 
@@ -93,7 +98,7 @@ sudo install -m 0755 target/release/server-status-agent /usr/local/bin/
 `/etc/server-status-agent.env`:
 
 ```bash
-ENDPOINT=http://127.0.0.1:8098/ingest
+ENDPOINT=http://127.0.0.1:8099/ingest
 TOKEN=<the same value as INGEST_TOKEN>
 INTERVAL_SECS=60
 ```
@@ -135,7 +140,7 @@ survive.
 | Agent logs `429` | `INTERVAL_SECS` too close to `INGEST_RATE_LIMIT_SECONDS` |
 | Agent logs `422 ... in the future` | VPS clock ahead of the container; fix NTP or raise `CLOCK_SKEW_SECONDS` |
 | Agent logs `422` about a list/collection | Payload exceeded a bound; see the message |
-| Agent logs connection refused | Port mapping missing, or the agent points at `8099` instead of `8098` |
+| Agent logs connection refused | Port mapping missing, or the agent points at `8098` instead of `8099` |
 | History empty after every redeploy | `/data` storage not attached |
 | `unable to open database file` | Bind mount not owned by uid `10001` |
 | Dashboard says `TELEMETRY STALE` | Agent not running, or being rejected — check its journal |

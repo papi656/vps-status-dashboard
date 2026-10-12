@@ -14,13 +14,13 @@ by topology, not by a reverse-proxy rule that has to be configured correctly.
 ```
                                           this service (one process)
   VPS                                  ┌──────────────────────────────────┐
-┌────────────────┐  POST :8098/ingest   │ ingest surface   :8098           │
+┌────────────────┐  POST :8099/ingest   │ ingest surface   :8099           │
 │ serverStatus   │  Bearer token        │  ├─ auth (constant time)         │
 │ agent (60s)    │ ───────────────────► │  ├─ rate limit                   │
 └────────────────┘  204 / 401 / 429     │  ├─ validate (Pydantic)          │
         host loopback only               │  └─ store (SQLite, WAL)          │
                                         │                                  │
-   browser ──► proxy ──► :8099          │ public surface   :8099           │
+   browser ──► proxy ──► :8098          │ public surface   :8098           │
                                         │  ├─ GET /api/*   (read-only)     │
                                         │  └─ static dashboard UI          │
                                         └──────────────────────────────────┘
@@ -40,10 +40,10 @@ uv venv .venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 
 cp .env.example .env          # set INGEST_TOKEN
-python -m app.serve           # 8099 = UI + read API, 8098 = ingest
+python -m app.serve           # 8098 = UI + read API, 8099 = ingest
 ```
 
-Open <http://127.0.0.1:8099/>. With no data yet the UI shows an "awaiting
+Open <http://127.0.0.1:8098/>. With no data yet the UI shows an "awaiting
 telemetry" state. Seed it with the replay tool:
 
 ```bash
@@ -60,7 +60,7 @@ python scripts/replay.py --count 200 --interval 0
 The real agent posts to the **ingest** port, which is not the one you open in a browser:
 
 ```bash
-TOKEN=dev ENDPOINT=http://127.0.0.1:8098/ingest ./server-status-agent --once
+TOKEN=dev ENDPOINT=http://127.0.0.1:8099/ingest ./server-status-agent --once
 ```
 
 > `python -m app.serve` is the entrypoint because it starts both listeners. Running
@@ -74,8 +74,8 @@ All read from the environment, optionally via a local `.env` (see `.env.example`
 |---|---|---|
 | `INGEST_TOKEN` | `dev` | Bearer token for `POST /ingest`. **Empty refuses to start** |
 | `HOST` | `0.0.0.0` | Bind address for both listeners |
-| `PORT` | `8099` | **Public** surface: UI + read API. Route this one |
-| `INGEST_PORT` | `8098` | **Ingest** surface. Publish to loopback; never route |
+| `PORT` | `8098` | **Public** surface: UI + read API. Route this one |
+| `INGEST_PORT` | `8099` | **Ingest** surface. Publish to loopback; never route. Matches the agent's default ENDPOINT |
 | `ENABLE_DOCS` | *off* | Set `1` to expose `/docs` and `/openapi.json` |
 | `DATA_DIR` | `./data` | Directory for the SQLite database |
 | `DB_PATH` | `$DATA_DIR/status.db` | Explicit database path |
@@ -158,6 +158,12 @@ Both rejections are logged (`ingest rejected (422) at 'ts': …` and
 `ingest rate limited (…)`), so a gap is visible in the container logs rather than silent.
 If the box has no reliable NTP, raise `CLOCK_SKEW_SECONDS`.
 
+**The endpoint is plain HTTP on loopback.** The agent posts to
+`http://127.0.0.1:8099/ingest` — never the public HTTPS domain. The proxy terminates TLS
+for browsers; the agent does not go through it. This is exactly why the two-port split
+matters: the only write path is reachable over loopback, and the publicly routed port
+does not serve `/ingest` at all.
+
 ### Data semantics worth knowing
 
 - **`mem.used` is `total - available`.** A buffer/cache figure (`total - used - available`)
@@ -178,13 +184,13 @@ If the box has no reliable NTP, raise `CLOCK_SKEW_SECONDS`.
 Two surfaces, two ports. Everything on the public port is read-only; the only write
 endpoint in the service lives on the ingest port.
 
-**Ingest surface — `:8098`**
+**Ingest surface — `:8099`**
 
 | Method | Path | Notes |
 |---|---|---|
 | `POST` | `/ingest` | Bearer-authenticated. `204` ok, `401` bad token, `429` rate limited, `413` body too large, `422` invalid payload. Nothing else exists here. |
 
-**Public surface — `:8099`**
+**Public surface — `:8098`**
 
 | Method | Path | Notes |
 |---|---|---|
@@ -223,14 +229,14 @@ cp .env.example .env && echo "INGEST_TOKEN=$(openssl rand -hex 32)" >> .env
 docker compose up -d --build
 ```
 
-Route **8099** through the proxy; **8098** is published to host loopback for the agent
+Route **8098** through the proxy; **8099** is published to host loopback for the agent
 and must never be routed.
 
 Three things will bite you if skipped:
 
 1. **Set `INGEST_TOKEN`.** Empty refuses to start; `dev` logs a warning and is public.
 2. **Persist `/data`.** Otherwise every redeploy wipes the history.
-3. **Publish only loopback for the ingest port** — `127.0.0.1:8098:8098`, not `8098:8098`.
+3. **Publish only loopback for the ingest port** — `127.0.0.1:8099:8099`, not `8099:8099`.
 
 **Bare metal / systemd**, if you'd rather not use containers:
 
@@ -251,7 +257,7 @@ WantedBy=multi-user.target
 ```
 
 Running as a plain process means both listeners share the host's network namespace, so
-the isolation above depends on the proxy only forwarding `8099` — and on the ingest port
+the isolation above depends on the proxy only forwarding `8098` — and on the ingest port
 not being reachable from outside (bind `HOST=127.0.0.1` if the proxy runs on the same
 host and the agent is local).
 

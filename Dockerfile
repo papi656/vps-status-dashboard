@@ -22,11 +22,12 @@ USER dash
 
 VOLUME ["/data"]
 
-# 8099 = public surface (UI + read-only API) — this is the one to route.
-# 8098 = ingest surface — publish to host loopback only, never route it.
-EXPOSE 8099 8098
+# 8098 = public surface (UI + read-only API) — this is the one to route.
+# 8099 = ingest surface — publish to host loopback only, never route it.
+#        8099 matches the serverStatus agent's default ENDPOINT.
+EXPOSE 8098 8099
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD ["python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8099/api/health', timeout=4).status == 200 else 1)"]
+    CMD ["python", "-c", "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8098/api/health', timeout=4).status == 200 else 1)"]
 
 CMD ["python", "-m", "app.serve"]
