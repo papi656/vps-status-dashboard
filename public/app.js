@@ -219,7 +219,6 @@ function renderReceiver(stats, sample, guard = {}) {
     kvRow("RETENTION", `${stats.retention_hours}h samples / ${stats.scan_retention_days}d scans`) +
     kvRow("STORE SIZE", fmtBytes(stats.db_bytes)) +
     kvRow("FIRST SAMPLE", stamp(stats.first_ts)) +
-    kvRow("INGEST AUTH", "BEARER TOKEN REQUIRED", "ok") +
     kvRow("INGEST RATE LIMIT", limit, guard.rate_limit_s ? "" : "amb") +
     kvRow("ACCEPTED SAMPLES", fmtNum(guard.accepted || 0), guard.accepted ? "ok" : "") +
     kvRow("AUTH FAILURES", fmtNum(guard.auth_failed || 0), guard.auth_failed ? "amb" : "") +
@@ -278,15 +277,26 @@ function renderBanner(s, stats) {
 
 let chartState = null;
 
+const chartHeight = () => (window.matchMedia("(max-width: 720px)").matches ? 160 : 220);
+const clockShort = (ts) => (ts ? new Date(ts * 1000).toISOString().slice(11, 16) + "Z" : "");
+
 function buildChart(history) {
+  const wrap = $("chart");
   const pts = (history?.points || []).filter((p) => p.cpu != null);
+  const H = chartHeight();
+
   if (pts.length < 2) {
     chartState = null;
-    $("chart").innerHTML = `<div class="dim mono" style="height:220px;display:flex;align-items:center;justify-content:center">NOT ENOUGH HISTORY YET — WAITING FOR MORE SAMPLES</div>`;
+    wrap.innerHTML = `<div class="dim mono" style="height:${H}px;display:flex;align-items:center;justify-content:center">NOT ENOUGH HISTORY YET — WAITING FOR MORE SAMPLES</div>`;
     setText("chart-note", "—");
     return;
   }
-  const W = 1000, H = 260, PL = 38, PR = 46, PT = 12, PB = 22;
+
+  // Render at the measured pixel size with a matching viewBox so the mapping is 1:1.
+  // With preserveAspectRatio="none" the SVG is stretched non-uniformly and every
+  // <text> inside it is smeared — which is what made the axis units unreadable.
+  const W = Math.max(360, Math.floor(wrap.clientWidth || 900));
+  const PL = 48, PR = 78, PT = 24, PB = 30;
   const iw = W - PL - PR, ih = H - PT - PB;
   const step = Math.max(1, Math.ceil(pts.length / 320));
   const data = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
@@ -304,27 +314,39 @@ function buildChart(history) {
   const gridY = [0, 25, 50, 75, 100]
     .map((g) => {
       const y = yPct(g);
-      return `<line x1="${PL}" y1="${y}" x2="${W - PR}" y2="${y}" stroke="var(--line)" stroke-width="1"/>
-              <text x="${PL - 6}" y="${y + 3}" fill="var(--muted)" font-size="9" text-anchor="end">${g}</text>`;
+      return `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W - PR}" y2="${y.toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
+              <text x="${PL - 8}" y="${(y + 3.5).toFixed(1)}" class="ax" text-anchor="end">${g}%</text>`;
     })
     .join("");
 
-  const ticks = [0, Math.floor((data.length - 1) / 2), data.length - 1]
-    .map((i) => `<text x="${x(i)}" y="${H - 6}" fill="var(--muted)" font-size="9" text-anchor="middle">${clock(data[i].ts)}</text>`)
+  // The network series has its own units, so it gets its own right-hand scale.
+  const netTicks = [0, 0.5, 1]
+    .map((f) => {
+      const v = maxNet * f;
+      return `<text x="${W - PR + 8}" y="${(yNet(v) + 3.5).toFixed(1)}" class="ax ax-net" text-anchor="start">${fmtBytes(v)}/s</text>`;
+    })
     .join("");
 
-  $("chart").innerHTML = `
+  const nTicks = Math.min(6, data.length);
+  const tickIdx = [...new Set(Array.from({ length: nTicks }, (_, k) => Math.round((k / (nTicks - 1)) * (data.length - 1))))];
+  const ticks = tickIdx
+    .map((i) => `<text x="${x(i).toFixed(1)}" y="${H - 10}" class="ax" text-anchor="middle">${clockShort(data[i].ts)}</text>`)
+    .join("");
+
+  wrap.innerHTML = `
     <div class="chart-svg">
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="CPU and memory history">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="CPU, memory and network receive history">
         ${gridY}
+        ${netTicks}
         <path d="${area("rx", yNet)}" fill="var(--amb)" opacity="0.08"/>
-        <path d="${line("rx", yNet)}" fill="none" stroke="var(--amb)" stroke-width="1" opacity="0.45"/>
+        <path d="${line("rx", yNet)}" fill="none" stroke="var(--amb)" stroke-width="1" opacity="0.5"/>
         <path d="${area("mem", yPct)}" fill="var(--cy)" opacity="0.10"/>
         <path d="${line("mem", yPct)}" fill="none" stroke="var(--cy)" stroke-width="1.4"/>
-        <path d="${area("cpu", yPct)}" fill="var(--ok)" opacity="0.12"/>
+        <path d="${area("cpu", yPct)}" fill="var(--ok)" opacity="0.14"/>
         <path d="${line("cpu", yPct)}" fill="none" stroke="var(--ok)" stroke-width="1.6"/>
         ${ticks}
-        <text x="${W - PR + 6}" y="${PT + 8}" fill="var(--amb)" font-size="9" text-anchor="start">${fmtBytes(maxNet)}/s</text>
+        <text x="4" y="${PT - 8}" class="ax ax-cap" text-anchor="start">PERCENT</text>
+        <text x="${W - PR + 8}" y="${PT - 8}" class="ax ax-cap ax-net" text-anchor="start">NET RX</text>
       </svg>
     </div>
     <div class="chart-cursor" id="chart-cursor" hidden></div>
@@ -390,6 +412,17 @@ function bindChartHover() {
     tip.style.top = "10px";
   });
   wrap.addEventListener("mouseleave", hideChartTip);
+}
+
+function bindChartResize() {
+  const wrap = $("chart");
+  if (typeof ResizeObserver === "undefined") return;
+  let raf = null;
+  new ResizeObserver(() => {
+    if (!lastHistory) return;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => buildChart(lastHistory));
+  }).observe(wrap);
 }
 
 function renderSpark(history) {
@@ -516,6 +549,7 @@ function initRange() {
 initTheme();
 initRange();
 bindChartHover();
+bindChartResize();
 refreshCurrent();
 refreshHistory();
 setInterval(refreshCurrent, 10_000);

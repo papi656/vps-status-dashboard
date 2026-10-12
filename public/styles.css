@@ -17,19 +17,19 @@ html[data-theme="dark"] {
   --track: #16181a;
 
   --text: #e2e2e5;
-  --text-dim: #b9ccb5;
-  --muted: #849581;
-  --outline: #3b4b3a;
-  --line: #1f2724;
+  --text-dim: #c9cbb4;
+  --muted: #8f9184;
+  --outline: #4b4a3a;
+  --line: #26261f;
 
-  --ok: #00ff66;
-  --ok-ink: #04240f;
+  --ok: #eaff00;
+  --ok-ink: #191b00;
   --cy: #00e3fd;
   --cy-ink: #00252b;
   --amb: #ffba27;
   --err: #ff6b6b;
 
-  --glow-ok: 0 0 6px rgba(0, 255, 102, 0.45);
+  --glow-ok: 0 0 6px rgba(234, 255, 0, 0.45);
   --glow-cy: 0 0 6px rgba(0, 227, 253, 0.45);
   --glow-amb: 0 0 6px rgba(255, 186, 39, 0.5);
 
@@ -46,13 +46,13 @@ html[data-theme="light"] {
   --track: #e2e5df;
 
   --text: #14181a;
-  --text-dim: #43504a;
-  --muted: #6f7a72;
-  --outline: #c2c8c0;
-  --line: #dfe3dd;
+  --text-dim: #4a4a42;
+  --muted: #737165;
+  --outline: #c8c5be;
+  --line: #e3e0d8;
 
-  --ok: #067a34;
-  --ok-ink: #e6fff0;
+  --ok: #8a7200;
+  --ok-ink: #fffce8;
   --cy: #006d7c;
   --cy-ink: #e2fbff;
   --amb: #8a5a00;
@@ -283,6 +283,18 @@ main {
 .legend-note { margin-left: auto; color: var(--muted); }
 .chart { position: relative; }
 .chart svg { display: block; width: 100%; height: 220px; }
+
+/* Axis text. The chart is drawn at 1:1 pixel scale (viewBox == element size) so
+   these are never stretched; font-family has to be set explicitly because SVG text
+   does not inherit it the way HTML does. */
+.chart svg text {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.chart .ax { fill: var(--text-dim); }
+.chart .ax-net { fill: var(--amb); }
+.chart .ax-cap { fill: var(--muted); font-size: 9px; letter-spacing: .12em; }
 .chart-cursor {
   position: absolute; top: 0; bottom: 0; width: 1px;
   background: var(--muted); opacity: .55; pointer-events: none;
