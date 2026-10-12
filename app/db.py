@@ -211,13 +211,22 @@ def prune_now() -> int:
 # ---------------------------------------------------------------------------- read
 
 
-def _rate(current: int, previous: int | None, dt: int) -> tuple[float | None, bool]:
-    """Return (per_second, reset). A negative delta means the box rebooted."""
+def _rate(
+    current: int, previous: int | None, dt: int, rebooted: bool = False
+) -> tuple[float | None, bool]:
+    """Return (per_second, rebooted).
+
+    A negative delta normally means the counter reset, but the agent *sums* counters
+    across every non-loopback interface and every block device — so an interface or
+    device disappearing also produces a negative delta. Only report a reboot when
+    ``uptime_s`` independently went backwards; otherwise clamp to 0 rather than
+    announcing a reboot that did not happen.
+    """
     if previous is None or dt <= 0:
         return None, False
     delta = current - previous
     if delta < 0:
-        return None, True
+        return (None, True) if rebooted else (0.0, False)
     return delta / dt, False
 
 
@@ -237,17 +246,19 @@ def get_current() -> dict[str, Any]:
 
     prev = conn.execute(
         """
-        SELECT ts, net_rx, net_tx, diskio_r, diskio_w
+        SELECT ts, uptime_s, net_rx, net_tx, diskio_r, diskio_w
         FROM samples WHERE ts < ? ORDER BY ts DESC LIMIT 1
         """,
         (latest["ts"],),
     ).fetchone()
 
     dt = (latest["ts"] - prev["ts"]) if prev else 0
-    rx_per_s, net_reset = _rate(latest["net_rx"], prev["net_rx"] if prev else None, dt)
-    tx_per_s, _ = _rate(latest["net_tx"], prev["net_tx"] if prev else None, dt)
-    rd_per_s, rd_reset = _rate(latest["diskio_r"], prev["diskio_r"] if prev else None, dt)
-    wr_per_s, wr_reset = _rate(latest["diskio_w"], prev["diskio_w"] if prev else None, dt)
+    # uptime_s is the authoritative reboot signal (see _rate).
+    rebooted = prev is not None and latest["uptime_s"] < prev["uptime_s"]
+    rx_per_s, net_reset = _rate(latest["net_rx"], prev["net_rx"] if prev else None, dt, rebooted)
+    tx_per_s, _ = _rate(latest["net_tx"], prev["net_tx"] if prev else None, dt, rebooted)
+    rd_per_s, rd_reset = _rate(latest["diskio_r"], prev["diskio_r"] if prev else None, dt, rebooted)
+    wr_per_s, wr_reset = _rate(latest["diskio_w"], prev["diskio_w"] if prev else None, dt, rebooted)
     io_reset = rd_reset or wr_reset
 
     disk_rows = conn.execute(
@@ -343,7 +354,7 @@ def get_history(range_seconds: int) -> dict[str, Any]:
     cutoff = int(time.time()) - range_seconds
     rows = conn.execute(
         """
-        SELECT ts, cpu_pct, mem_used, mem_total, net_rx, net_tx
+        SELECT ts, uptime_s, cpu_pct, mem_used, mem_total, net_rx, net_tx
         FROM samples WHERE ts >= ? ORDER BY ts ASC
         """,
         (cutoff,),
@@ -357,8 +368,9 @@ def get_history(range_seconds: int) -> dict[str, Any]:
         if prev is not None:
             dt = r["ts"] - prev["ts"]
             if dt > 0:
-                drx, _ = _rate(r["net_rx"], prev["net_rx"], dt)
-                dtx, _ = _rate(r["net_tx"], prev["net_tx"], dt)
+                rebooted = r["uptime_s"] < prev["uptime_s"]
+                drx, _ = _rate(r["net_rx"], prev["net_rx"], dt, rebooted)
+                dtx, _ = _rate(r["net_tx"], prev["net_tx"], dt, rebooted)
                 rx, tx = drx, dtx
         points.append(
             {

@@ -8,7 +8,9 @@ import hmac
 import logging
 import time
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -27,6 +29,7 @@ if not logging.getLogger().handlers:
     )
 
 limiter = MinIntervalLimiter(settings.ingest_rate_limit_seconds)
+_last_limit_log = 0.0
 
 
 async def _retention_loop() -> None:
@@ -63,6 +66,20 @@ app = FastAPI(
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def log_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Log *why* a snapshot was rejected.
+
+    The agent has no retry (see its main loop), so a 422 here is a permanent gap in
+    the timeline. Without this the rejection is completely silent.
+    """
+    if request.url.path == "/ingest":
+        first = exc.errors()[0] if exc.errors() else {}
+        loc = ".".join(str(p) for p in first.get("loc", ()) if p != "body") or "body"
+        log.warning("ingest rejected (422) at '%s': %s", loc, first.get("msg", "invalid payload"))
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
+
+
 def require_auth(authorization: str | None = Header(default=None)) -> None:
     """Route-level dependency, so auth is checked *before* the body is validated."""
     expected = f"Bearer {settings.ingest_token}"
@@ -80,16 +97,29 @@ def enforce_rate_limit() -> None:
     Auth first, deliberately: if an unauthenticated caller could trip the limiter,
     anyone could lock the real agent out with a junk request every 30s.
     """
+    global _last_limit_log
     wait = limiter.check()
-    if wait > 0:
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                "ingest rate limited: at most one request per "
-                f"{settings.ingest_rate_limit_seconds}s"
-            ),
-            headers={"Retry-After": str(int(wait) + 1)},
+    if wait <= 0:
+        return
+
+    # Throttle the log: a flood would otherwise fill the log with one line per hit.
+    now = time.monotonic()
+    if now - _last_limit_log >= 60:
+        _last_limit_log = now
+        log.warning(
+            "ingest rate limited (%d rejected so far) — sender is faster than %ds",
+            limiter.rejected,
+            settings.ingest_rate_limit_seconds,
         )
+
+    raise HTTPException(
+        status_code=429,
+        detail=(
+            "ingest rate limited: at most one request per "
+            f"{settings.ingest_rate_limit_seconds}s"
+        ),
+        headers={"Retry-After": str(int(wait) + 1)},
+    )
 
 
 @app.middleware("http")

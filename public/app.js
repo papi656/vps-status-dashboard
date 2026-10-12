@@ -139,24 +139,24 @@ function renderDisks(s) {
 }
 
 function renderMem(s) {
+  // The agent defines mem.used as (total - available), so a "buffer/cache" figure
+  // derived as total-used-available is structurally always exactly 0. It is not
+  // computed or shown here.
   const m = s.mem;
   const pct = m.total ? (m.used / m.total) * 100 : 0;
-  const cached = Math.max(0, m.total - m.used - m.available);
   const t = tone(pct, 75, 90);
   setValue("mem-value", pct.toFixed(1), t);
   setText("mem-total", `${fmtBytes(m.used)} / ${fmtBytes(m.total)}`);
   setText("mem-meta", pct >= 90 ? "CRITICAL > 90%" : pct >= 75 ? "CAUTION > 75%" : "NOMINAL");
 
-  const usedW = m.total ? (m.used / m.total) * 100 : 0;
-  const cacheW = m.total ? (cached / m.total) * 100 : 0;
+  const usedW = clamp(m.total ? (m.used / m.total) * 100 : 0, 0, 100);
+  const color = t === "err" ? "var(--err)" : t === "amb" ? "var(--amb)" : "var(--ok)";
   $("mem-bar").innerHTML =
-    `<span class="seg" style="width:${usedW}%;background:var(--ok)"></span>` +
-    `<span class="seg" style="width:${cacheW}%;background:var(--amb)"></span>` +
+    `<span class="seg" style="width:${usedW}%;background:${color}"></span>` +
     `<span class="seg free" style="flex:1"></span>`;
 
   $("mem-list").innerHTML =
-    kvRow("ACTIVE / COMMITTED", fmtBytes(m.used)) +
-    kvRow("BUFFER / CACHE (EST)", fmtBytes(cached)) +
+    kvRow("USED (TOTAL − AVAILABLE)", fmtBytes(m.used), t) +
     kvRow("AVAILABLE HEADROOM", fmtBytes(m.available), "ok");
 
   const swapPct = m.swap_total ? (m.swap_used / m.swap_total) * 100 : 0;

@@ -123,6 +123,40 @@ as `INGEST RATE LIMIT` and `RATE-LIMITED HITS`.
 > **Seeding:** `scripts/replay.py` posts rapidly and will hit `429`. Restart the server
 > with `INGEST_RATE_LIMIT_SECONDS=0`, or use `--interval 60` to respect the limit.
 
+## Matching the `serverStatus` agent
+
+The wire contract is `shared::Snapshot` in
+[`papi656/serverStatus`](https://github.com/papi656/serverStatus) and matches these
+models field-for-field.
+
+**The agent does not retry.** Its loop logs `push failed: …` and waits for the next
+interval, so any rejected snapshot is a permanent gap. Two settings must therefore stay
+compatible:
+
+| Agent setting | Must relate to | Otherwise |
+|---|---|---|
+| `INTERVAL_SECS` (default `60`) | `> INGEST_RATE_LIMIT_SECONDS` (default `30`) | Agent gets `429` and drops samples |
+| VPS clock accuracy | `CLOCK_SKEW_SECONDS` (default `300`) | Agent stamps `SystemTime::now()`; a clock >5 min fast makes **every** snapshot `422` |
+
+Both rejections are logged (`ingest rejected (422) at 'ts': …` and
+`ingest rate limited (…)`), so a gap is visible in the container logs rather than silent.
+If the box has no reliable NTP, raise `CLOCK_SKEW_SECONDS`.
+
+### Data semantics worth knowing
+
+- **`mem.used` is `total - available`.** A buffer/cache figure (`total - used - available`)
+  is therefore always exactly `0`, which is why the RAM panel shows only used/available.
+- **`net` sums all non-loopback interfaces; `diskio` sums all block devices** (skipping
+  only `loop*`/`ram*`). Losing an interface or device makes the sum go *backwards*, so a
+  negative delta alone is not proof of a reboot. The reset flag requires `uptime_s` to
+  fall, and otherwise clamps to `0` instead of reporting a reboot that did not happen.
+- **`diskio` counts whole disks *and* their partitions** (`sda` and `sda1`), so absolute
+  I/O totals are inflated; the per-second rates are still directionally useful.
+- **Process `cpu_pct` is `delta/total × ncpu × 100`**, so it can legitimately exceed
+  `100%` on a multi-core box — the model bounds it at `>= 0` only.
+- **`cpu.total_pct` cannot exceed `100`** by construction (`idle + iowait` are a subset of
+  the summed fields) and the agent guards the zero-delta case, so no `NaN` reaches the wire.
+
 ## API
 
 Everything except `/ingest` is public and read-only.
